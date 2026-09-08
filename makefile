@@ -1,7 +1,7 @@
 all:
-	g++ main-Linux.cpp -o sokoban
+	g++ main-Linux.cpp -o labirinto
 run:
-	./sokoban
+	./labirinto
 
 clean:
-	rm -f sokoban
+	rm -f labirinto

@@ -14,24 +14,34 @@
 #define player 5
 #define boxIn 6
 #define playerIn 7
-#define lever 8;
+#define lever 8
 using namespace std;
 
-void defineCoordinates(int pli,int pco){
+void defineCoordinates(int &pli,int &pco){
             pli = 10;
             pco = 2;
 }
-void reset(int mapSelection,int map_reset[][order],int map[][order],int pli,int pco){
-       if (mapSelection == 1) {
-                for (int i = 0; i < line; i++) {
-                    for (int j = 0; j < collum; j++) {
-                        map[i][j] = map_reset[i][j];
-                    }
-                }
-                pli = 10;
-                pco = 2;
-            }
+void reset(int mapSelection,int mapReset[][order],int map[][order],int pli,int pco){
+            map= mapReset;
+            
 }
+void selection(int mapSelection,int mapReset[][order],int map[][order],int currentMap[][order],int currentMapReset[][order],int map2[][order],int map2Reset[][order],int mapHard[][order],int mapHardReset[][order]){
+    switch(mapSelection){
+        case 1:
+            currentMap=map;
+            currentMapReset=mapReset;
+            break;
+        case 2:
+            currentMap=map2;
+            currentMapReset=map2Reset;
+            break;
+        case 3:
+            currentMap=mapHard;
+            currentMapReset=mapHardReset;
+            break;
+
+    }
+}  
 bool win(bool venceu){
           if (venceu == true) {
             cout << "\n==========================================" << endl;
@@ -54,8 +64,17 @@ for (int i = 0; i < N / 2; i++) {
     contRotates ++;
     }
 
-void mapRotationAnti(int map[][collum],int pli,int pco,int &contRotates){
-
+void mapRotationAnti(int map[][collum],int &pli,int &pco,int &contRotates){
+    int N=order;
+    for(int i=0;i<N/2;i++){
+        for(int j=0;j<(N+1)/2;j++){
+            int temp = map[i][j];
+                map[i][j] = map[j][N - 1 - i];
+                map[j][N - 1 - i] = map[N - 1 - i][N - 1 - j];
+                map[N - 1 - i][N - 1 - j] = map[N - 1 - j][i];
+                map[N - 1 - j][i] = temp;
+        }
+    }
 }
 void mapGenerate(int map[][order]){
     for (int i = 0; i < line; i++) {
@@ -93,7 +112,7 @@ void mapGenerate(int map[][order]){
                 cout << endl;
             }
 }
-void movi(char x,int map[][order],int pli,int pco,int contRotates,int contmovi){
+void movi(char x,int map[][order],int &pli,int &pco,int contRotates,int contmovi){
     switch (x) {
             case 'w':
                 if (map[pli-1][pco] == wall) {
@@ -270,9 +289,11 @@ int main() {
     char x;
     bool venceu = false;
     bool desistiu = false;
-    int caixasSoltas = 0;
     int contRotates=0;
     int contMovi=0;
+    int (*currentMap)[order];
+    int (*currentMapReset)[order];
+
     //d s s s s d s e e e d d d d w w a w a
     int map[order][order] = {
     {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
@@ -372,6 +393,7 @@ int mapHardReset[order][order] = {
     {1,0,0,0,3,0,1,5,3,1,1,0,3,1},
     {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
 };
+
     cout << "\n1-Autores  2-Orientacoes do jogo  3-Jogar\n";
     cin >> options;
 
@@ -407,37 +429,16 @@ int mapHardReset[order][order] = {
 
     while (true) {
 
-        system("clear");
-//Procurar alguma forma de não fazer 3 if para cada mapa
-        if (mapSelection == 1) {
-            mapGenerate(map);
-            defineCoordinates(pli,pco);
-        }
-         if (mapSelection == 2) {
-            mapGenerate(map2);
-            defineCoordinates(pli,pco);
-        }
-         if (mapSelection == 3) {
-            mapGenerate(mapHard);
-            defineCoordinates(pli,pco);
-        }
+        system("clear");  
+        selection(mapSelection,mapReset,map,currentMap,currentMapReset,map2,map2Reset,mapHard,mapHardReset);    
         x = getch();
-        movi(x,map,pli,pco,contRotates,contMovi);
+        movi(x,currentMap,pli,pco,contRotates,contMovi);
         // RESET
-            if (x == 'r' && mapSelection==1) {
-            reset(mapSelection,mapReset,map,pli,pco);
-        }
-            if (x == 'r' && mapSelection==2) {
-            reset(mapSelection,map2Reset,map,pli,pco);
-        }
-            if (x == 'r' && mapSelection==3) {
-            reset(mapSelection,mapHardReset,map,pli,pco);
+            if (x == 'r' ) {
+            reset(mapSelection,currentMapReset,currentMap,pli,pco);
         }
             if (x == 'g') {
             return false;
-        }
-            if (mapSelection) {
-            movi(x,map,pli,pco,contRotates,contMovi);
         }
     }
     return 0;
@@ -445,6 +446,10 @@ int mapHardReset[order][order] = {
             cout << "        PARABENS! Voce venceu!           " << endl;
             cout << "==========================================" << endl;
 }
-//Passagem por valor nao precisa de backup das matrizes
-//Procurar alguma forma de não fazer 3 if para cada mapa
+//Passagem por valor nao precisa de backup das mapes OKK
+//Procurar alguma forma de não fazer 3 if para cada mapa OKKK
 //Adicionar as alavancas no mapgenerate
+//ENTENDER COMPLEXIDADE DA ROTAÇAO
+//LOGICA DE MOVIMENTAÇÃO
+//CHAMAR TUDO NA FUNÇÃO
+//ORIENTAÇÕES NO JOGO
