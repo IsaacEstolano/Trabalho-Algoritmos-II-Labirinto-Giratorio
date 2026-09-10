@@ -6,22 +6,66 @@
 #define collum 14
 #define hollow 0
 #define wall 1
-#define rightPlace 2
-#define afterWall 3
-#define box 4
-#define player 5
-#define boxIn 6
-#define playerIn 7
-#define lever 8
+#define player 2
+#define box 3
+#define lever 4
+#define exit 5
+#define doorA 6
+#define doorB 7
+#define playerIn 8
 using namespace std;
-
-void defineCoordinates(int &pli,int &pco){
-            pli = 10;
-            pco = 2;
+void exibirSobre() {
+    cout << "==================================================" << endl;
+    cout << "                LABIRINTO GIRATORIO               " << endl;
+    cout << "==================================================" << endl;
+    cout << "Equipe: Isaac Furtado Estolano da Silveira" << endl;
+    cout << "Disciplina: Algoritmos e Programacao II -" << endl;
+    cout << "OBJETIVO: atravessar o labirinto ate a saida (S)." << endl;
+    cout << "O cenario inteiro pode ser girado 90 graus, mas so quando" << endl;
+    cout << "voce estiver em cima de uma alavanca (^)." << endl << endl;
+    cout << "LEGENDA:" << endl;
+    cout << "  @  Jogador" << endl;
+    cout << "  &  Parede fixa (solida, nunca cai)" << endl;
+    cout << "  O  Bloco solto (cai com a gravidade)" << endl;
+    cout << "  ^  Alavanca (habilita girar)" << endl;
+    cout << "  S  Saida (vitoria)" << endl;
+    cout << "  = / :  Porta tipo A (fechada / aberta)" << endl;
+    cout << "  | / ;  Porta tipo B (fechada / aberta)" << endl << endl;
+    cout << "CONTROLES:" << endl;
+    cout << "  W A S D - mover      Q - girar anti-horario" << endl;
+    cout << "  E - girar horario    R - reiniciar a fase" << endl;
+    cout << "  ESC - voltar ao menu (o jogo fica pausado)" << endl << endl;
+    cout << "Pressione qualquer tecla para voltar ao menu...";
+    getch();
 }
-void reset(int mapSelection,int mapReset[][order],int map[][order],int pli,int pco){
-            map= mapReset;
-            
+
+void defineCoordinates(int &pli, int &pco, int mapSelection){
+    if (mapSelection == 1) {
+        pli = 3;
+        pco = 6;
+    }
+    if (mapSelection == 2) {
+        pli = 12;
+        pco = 1;
+    }
+    if (mapSelection == 3) {
+        pli = 11;
+        pco = 10;
+    }
+}
+void reset(int mapSelection,int mapReset[][order],int map[][order],int &pli,int &pco
+){
+    if (mapSelection == 1 || mapSelection == 2 || mapSelection == 3) {
+        for (int i = 0; i < line; i++) {
+            for (int j = 0; j < collum; j++) {
+                map[i][j] = mapReset[i][j];
+            }
+        }
+
+        // Depois de restaurar o mapa, restaur
+        // também a posição inicial do jogador.
+        defineCoordinates(pli, pco, mapSelection);
+    }
 }
 void selection(int mapSelection,int mapReset[][order],int map[][order],int (*&currentMap)[order],int (*&currentMapReset)[order],int map2[][order],int map2Reset[][order],int mapHard[][order],int mapHardReset[][order]){
     switch(mapSelection){
@@ -83,48 +127,107 @@ void mapRotationAnti(int map[][collum],int &pli,int &pco,int &contRotates){
 
     pli=newPli;
     pco=newPco;
-    contRotates;
+    contRotates++;
 }
-void mapGenerate(int map[][order]){
-    for (int i = 0; i < line; i++) {
-                for (int j = 0; j < collum; j++) {
-                    switch (map[i][j]) {
-                        case hollow:   
-                          cout << " "; 
-                          break;
-                        case wall:     
-                          cout << "&"; 
-                          break;
-                        case rightPlace: 
-                        cout << "-";
-                         break;
-                        case afterWall: 
-                         cout << " "; 
-                         break;
-                        case box:       
-                         cout << "$"; 
-                         break;
-                        case player:    
-                         cout << "@";
-                          break;
-                        case boxIn:     
-                         cout << "%";
-                          break;
-                        case playerIn: 
-                          cout << "?";
-                           break;
-                        case lever:
-                            cout<<"^";
-                            break;
-                        default:   
-                          cout << " "; 
-                          break;
-                    }
+void gravity(int map[][order], int contRotates)
+{
+    for(int i = order - 2; i >= 0; i--)
+    {
+        for(int j = 0; j < order; j++)
+        {
+            if(map[i][j] != box)
+                continue;
+
+            int linha = i;
+
+            while(linha + 1 < order)
+            {
+                bool podeCair = false;
+
+                if(map[linha + 1][j] == hollow)
+                {
+                    podeCair = true;
                 }
-                cout << endl;
+
+                // Porta A aberta
+                if(map[linha + 1][j] == doorA &&
+                   contRotates % 2 != 0)
+                {
+                    podeCair = true;
+                }
+
+                // Porta B aberta
+                if(map[linha + 1][j] == doorB &&
+                   contRotates % 2 == 0)
+                {
+                    podeCair = true;
+                }
+
+                if(podeCair)
+                {
+                    map[linha + 1][j] = box;
+                    map[linha][j] = hollow;
+
+                    linha++;
+                }
+                else
+                {
+                    break;
+                }
             }
+        }
+    }
 }
-void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int contRotates,int contmovi,int mapSelection){
+void mapGenerate(int map[][order], int contRotates) {
+    for (int i = 0; i < line; i++) {
+        for (int j = 0; j < collum; j++) {
+            switch (map[i][j]) {
+
+                case hollow:
+                    cout << " ";
+                    break;
+                case wall:
+                    cout<< "&";
+                    break;
+                case player:
+                    cout << "@";
+                    break;
+                case box:
+                    cout<< "O";
+                    break;
+                case lever:
+                    cout<< "^";
+                    break;
+                case exit:
+                    cout<< "S";
+                    break;
+                case playerIn:
+                    cout<< "?";
+                case doorA:
+                    if (contRotates % 2 == 0){
+                        cout << "=";  // fechada
+                    }
+                else{
+                    cout << ":";  // aberta
+                }
+                    break;
+                case doorB:
+                    if (contRotates % 2 == 0){
+                        cout << ";";  // aberta
+                    }
+                    else{
+                        cout << "|";  // fechada
+                    }
+                    break;
+                default:
+                    cout << " ";
+                    break;
+            }
+        }
+        cout << endl;
+    }
+}
+void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int &contRotates,int &contmovi,int mapSelection){
     switch (x) {
             case 'w':
                 if (map[pli-1][pco] == wall) {
@@ -143,135 +246,67 @@ void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int co
                     map[pli][pco] = hollow;
                 }
                 pli--;
+                contmovi++;
                 break;
 
             case 's':
                 if (map[pli+1][pco] == wall) {
                     break;
                 }
-                if (map[pli+1][pco] == box || map[pli+1][pco] == boxIn) {
-                    if (map[pli+2][pco] == hollow || map[pli+2][pco] == rightPlace) {
-                        if (map[pli+2][pco] == rightPlace) {
-                            map[pli+2][pco] = boxIn;
-                        }
-                        else {
-                            map[pli+2][pco] = box;
-                        }
-                        if (map[pli+1][pco] == boxIn) {
-                            map[pli+1][pco] = playerIn;
-                        }
-                        else {
-                            map[pli+1][pco] = player;
-                        }
-                        if (map[pli][pco] == playerIn) {
-                            map[pli][pco] = rightPlace;
-                        }
-                        else {
-                            map[pli][pco] = hollow;
-                        }
-                        pli++;
-                    }
-                    break;
-                }
-                if (map[pli+1][pco] == rightPlace) {
+                if (map[pli+1][pco] == lever) {
                     map[pli+1][pco] = playerIn;
                 }
                 else {
                     map[pli+1][pco] = player;
                 }
                 if (map[pli][pco] == playerIn) {
-                    map[pli][pco] = rightPlace;
+                    map[pli][pco] = lever;
                 }
                 else {
                     map[pli][pco] = hollow;
                 }
                 pli++;
+                contRotates++;
                 break;
 
             case 'a':
                 if (map[pli][pco-1] == wall) {
                     break;
                 }
-                if (map[pli][pco-1] == box || map[pli][pco-1] == boxIn) {
-                    if (map[pli][pco-2] == hollow || map[pli][pco-2] == rightPlace) {
-                        if (map[pli][pco-2] == rightPlace) {
-                            map[pli][pco-2] = boxIn;
-                        }
-                        else {
-                            map[pli][pco-2] = box;
-                        }
-                        if (map[pli][pco-1] == boxIn) {
-                            map[pli][pco-1] = playerIn;
-                        }
-                        else {
-                            map[pli][pco-1] = player;
-                        }
-                        if (map[pli][pco] == playerIn) {
-                            map[pli][pco] = rightPlace;
-                        }
-                        else {
-                            map[pli][pco] = hollow;
-                        }
-                        pco--;
-                    }
-                    break;
-                }
-                if (map[pli][pco-1] == rightPlace) {
+                if (map[pli][pco-1] == lever) {
                     map[pli][pco-1] = playerIn;
                 }
                 else {
                     map[pli][pco-1] = player;
                 }
                 if (map[pli][pco] == playerIn) {
-                    map[pli][pco] = rightPlace;
+                    map[pli][pco] = lever;
                 }
                 else {
                     map[pli][pco] = hollow;
                 }
                 pco--;
+                contRotates++;
                 break;
 
             case 'd':
                 if (map[pli][pco+1] == wall) {
                     break;
                 }
-                if (map[pli][pco+1] == box || map[pli][pco+1] == boxIn) {
-                    if (map[pli][pco+2] == hollow || map[pli][pco+2] == rightPlace) {
-                        if (map[pli][pco+2] == rightPlace) {
-                            map[pli][pco+2] = boxIn;
-                        }
-                        else {
-                            map[pli][pco+2] = box;
-                        }
-                        if (map[pli][pco+1] == boxIn) {
-                            map[pli][pco+1] = playerIn;
-                        }
-                        else {
-                            map[pli][pco+1] = player;
-                        }
-                        if (map[pli][pco] == playerIn) {
-                            map[pli][pco] = rightPlace;
-                        }
-                        else {
-                            map[pli][pco] = hollow;
-                        }
-                        pco++;
-                    }
-                    break;
-                }
-                if (map[pli][pco+1] == rightPlace) {
+                if (map[pli][pco+1] == lever) {
                     map[pli][pco+1] = playerIn;
                 }
                 else {
                     map[pli][pco+1] = player;
                 }
                 if (map[pli][pco] == playerIn) {
-                    map[pli][pco] = rightPlace;
+                    map[pli][pco] = lever;
                 }
                 else {
                     map[pli][pco] = hollow;
                 }
                 pco++;
+                contRotates++;
                 break;
                 case 'q':
                     mapRotationAnti(map,pli,pco,contRotates);
@@ -443,11 +478,11 @@ int mapHardReset[order][order] = {
         
     }
     selection(mapSelection,mapReset,map,currentMap,currentMapReset,map2,map2Reset,mapHard,mapHardReset);    
-    defineCoordinates(pli,pco);
+    defineCoordinates(pli,pco,mapSelection);
     while (true) {
         
         system("clear");  
-        mapGenerate(currentMap);
+        mapGenerate(currentMap,contRotates);
         x = getch();
         movi(x,currentMap,currentMapReset,pli,pco,contRotates,contMovi,mapSelection);
     }
