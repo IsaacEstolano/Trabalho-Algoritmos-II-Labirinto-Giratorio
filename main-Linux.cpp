@@ -4,8 +4,6 @@
 #define order 14
 #define line 14
 #define collum 14
-#define line2 9
-#define collum2 12
 #define hollow 0
 #define wall 1
 #define rightPlace 2
@@ -25,7 +23,7 @@ void reset(int mapSelection,int mapReset[][order],int map[][order],int pli,int p
             map= mapReset;
             
 }
-void selection(int mapSelection,int mapReset[][order],int map[][order],int currentMap[][order],int currentMapReset[][order],int map2[][order],int map2Reset[][order],int mapHard[][order],int mapHardReset[][order]){
+void selection(int mapSelection,int mapReset[][order],int map[][order],int (*&currentMap)[order],int (*&currentMapReset)[order],int map2[][order],int map2Reset[][order],int mapHard[][order],int mapHardReset[][order]){
     switch(mapSelection){
         case 1:
             currentMap=map;
@@ -50,7 +48,7 @@ bool win(bool venceu){
         }
     return false;
 }
-void mapRotationNormal(int map[][collum],int pli,int pco,int &contRotates){
+void mapRotationNormal(int map[][collum],int &pli,int &pco,int &contRotates){
    int N = order; // Tamanho da map NxN
 for (int i = 0; i < N / 2; i++) {
     for (int j = i; j < N - i - 1; j++) {
@@ -60,10 +58,15 @@ for (int i = 0; i < N / 2; i++) {
         map[N - 1 - i][N - 1 - j] = map[j][N - 1 - i];
         map[j][N - 1 - i] = temp;
     }
-}
+}   int newPli=pco;
+    int newPco=N-1-pli;
+
+    pli=newPli;
+    pco=newPco;
     contRotates ++;
     }
-
+//nova linha = coluna antiga
+//nova coluna = N - linha antiga
 void mapRotationAnti(int map[][collum],int &pli,int &pco,int &contRotates){
     int N=order;
     for(int i=0;i<N/2;i++){
@@ -75,6 +78,12 @@ void mapRotationAnti(int map[][collum],int &pli,int &pco,int &contRotates){
                 map[N - 1 - j][i] = temp;
         }
     }
+    int newPco=pli;
+    int newPli=N-1-pco;
+
+    pli=newPli;
+    pco=newPco;
+    contRotates;
 }
 void mapGenerate(int map[][order]){
     for (int i = 0; i < line; i++) {
@@ -104,6 +113,9 @@ void mapGenerate(int map[][order]){
                         case playerIn: 
                           cout << "?";
                            break;
+                        case lever:
+                            cout<<"^";
+                            break;
                         default:   
                           cout << " "; 
                           break;
@@ -112,7 +124,7 @@ void mapGenerate(int map[][order]){
                 cout << endl;
             }
 }
-void movi(char x,int map[][order],int &pli,int &pco,int contRotates,int contmovi){
+void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int contRotates,int contmovi,int mapSelection){
     switch (x) {
             case 'w':
                 if (map[pli-1][pco] == wall) {
@@ -266,6 +278,10 @@ void movi(char x,int map[][order],int &pli,int &pco,int contRotates,int contmovi
                     break;
                 case 'e':
                     mapRotationNormal(map,pli,pco,contRotates);
+                    break;
+                case 'r':
+                     reset(mapSelection,mapReset,map,pli,pco);
+                    
             }
 }
 int getch(void) {
@@ -422,29 +438,20 @@ int mapHardReset[order][order] = {
     }
 
     if (options == 3) {
-        cout << "Digite 1 para o mapa map1 e 2 para map2: ";
+        cout << "Digite 1 para o mapa map1,2 para map2 e 3 para o mapa difícil: ";
         cin >> mapSelection;
         
     }
-
+    selection(mapSelection,mapReset,map,currentMap,currentMapReset,map2,map2Reset,mapHard,mapHardReset);    
+    defineCoordinates(pli,pco);
     while (true) {
-
+        
         system("clear");  
-        selection(mapSelection,mapReset,map,currentMap,currentMapReset,map2,map2Reset,mapHard,mapHardReset);    
+        mapGenerate(currentMap);
         x = getch();
-        movi(x,currentMap,pli,pco,contRotates,contMovi);
-        // RESET
-            if (x == 'r' ) {
-            reset(mapSelection,currentMapReset,currentMap,pli,pco);
-        }
-            if (x == 'g') {
-            return false;
-        }
+        movi(x,currentMap,currentMapReset,pli,pco,contRotates,contMovi,mapSelection);
     }
     return 0;
-         cout << "\n==========================================" << endl;
-            cout << "        PARABENS! Voce venceu!           " << endl;
-            cout << "==========================================" << endl;
 }
 //Passagem por valor nao precisa de backup das mapes OKK
 //Procurar alguma forma de não fazer 3 if para cada mapa OKKK
