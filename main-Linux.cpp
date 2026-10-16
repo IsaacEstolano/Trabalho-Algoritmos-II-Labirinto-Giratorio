@@ -1,4 +1,6 @@
 #include <iostream>
+#include <string>
+#include <fstream>
 #include <termios.h>
 #include <unistd.h>
 #define order 14
@@ -13,8 +15,34 @@
 #define door 6
 #define playerIn 8
 #define playerInLever 9
+#define playerInExit 10
 using namespace std;
-void exibirSobre() {
+
+struct Map{
+    int mapSelection;
+    int mapOrder;
+    int mapReset;
+    int currentMap;
+    int contRotates;
+    int contMovi;
+    int pli;
+    int pco;
+    int numMap;
+
+};
+struct Game{
+    int options;
+    char keyB;
+    bool venceu;
+    bool voltarMenu;
+    bool fim;
+    bool desistiu;
+    bool currentGame;
+    bool last;
+    int orientation;
+    
+};
+void about() {
     cout << "==================================================" << endl;
     cout << "                LABIRINTO GIRATORIO               " << endl;
     cout << "==================================================" << endl;
@@ -30,30 +58,32 @@ void exibirSobre() {
     cout << "  ^  Alavanca (habilita girar)" << endl;
     cout << "  S  Saida (vitoria)" << endl;
     cout << "  = / :  Porta tipo A (fechada / aberta)" << endl;
-    cout << "  | / ;  Porta tipo B (fechada / aberta)" << endl << endl;
     cout << "CONTROLES:" << endl;
     cout << "  W A S D - mover      Q - girar anti-horario" << endl;
     cout << "  E - girar horario    R - reiniciar a fase" << endl;
     cout << "  K - voltar ao menu (o jogo fica pausado)" << endl << endl;
 }
+void readMap(Map &currentMap){
+    ifstream file;
+    file.open("Mapa"+to_string(currentMap.numMap)+".csv");
+}
 
-void defineCoordinates(int &pli, int &pco, int mapSelection){
-    if (mapSelection == 1) {
-        pli = 3;
-        pco = 6;
+void defineCoordinates(Map &currentMap){
+    if (currentMap.mapSelection == 1) {
+        currentMap.pli = 3;
+        currentMap.pco = 6;
     }
-    if (mapSelection == 2) {
-        pli = 12;
-        pco = 1;
+    if (currentMap.mapSelection == 2) {
+        currentMap.pli = 12;
+        currentMap.pco = 1;
     }
-    if (mapSelection == 3) {
-        pli = 11;
-        pco = 10;
+    if (currentMap.mapSelection == 3) {
+        currentMap.pli = 11;
+        currentMap.pco = 10;
     }
 }
-void reset(int mapSelection,int mapReset[][order],int map[][order],int &pli,int &pco
-){
-    if (mapSelection == 1 || mapSelection == 2 || mapSelection == 3) {
+void reset(Map &currentMap){
+    if (currentMap.mapSelection == 1 || currentMap.mapSelection == 2 || currentMap.mapSelection == 3) {
         for (int i = 0; i < line; i++) {
             for (int j = 0; j < collum; j++) {
                 map[i][j] = mapReset[i][j];
@@ -61,10 +91,10 @@ void reset(int mapSelection,int mapReset[][order],int map[][order],int &pli,int 
         }
         // Depois de restaurar o mapa, restaur
         // também a posição inicial do jogador.
-        defineCoordinates(pli, pco, mapSelection);
+        defineCoordinates(currentMap);
     }
 }
-void selection(int mapSelection,int mapReset[][order],int map[][order],int (*&currentMap)[order],int (*&currentMapReset)[order],int map2[][order],int map2Reset[][order],int mapHard[][order],int mapHardReset[][order]){
+void selection(){
     switch(mapSelection){
         case 1:
             currentMap=map;
@@ -164,7 +194,7 @@ void gravity(int map[][order], int contRotates,bool &fim,bool &venceu)
         }
     }
 }
-void mapGenerate(int map[][order], int contRotates,int contMovi,int orientation,int mapSelection) {
+void mapGenerate(int map[][order], int contRotates,int contMovi,int orientation,int mapSelection,bool venceu,bool fim,bool last) {
      cout<<"Movimentos:"<<contMovi <<endl;
     cout<<"Rotações:"<<contRotates << endl;
     cout<<"Orientação:"<<orientation <<endl;
@@ -196,23 +226,30 @@ void mapGenerate(int map[][order], int contRotates,int contMovi,int orientation,
                 case playerInLever:
                     cout<< "+";
                     break;
-                case door:
+                    case door:
                     if (contRotates % 2 == 0){
                         cout << "=";  // fechada
                     }
-                else{
-                    cout << ":";  // aberta
-                }
+                    else{
+                        cout << ":";  // aberta
+                    }
                     break;
+                    case playerInExit:
+                        cout<<"$";
+                        break;
                 default:
                     cout << " ";
                     break;
+            }
+            if(last){
+                win(venceu,fim);
+                break;
             }
         }
         cout << endl;
     }
 }
-void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int &contRotates,int &contmovi,int mapSelection,bool &venceu,bool &voltarMenu,bool &fim,int &orientation){
+void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int &contRotates,int &contmovi,int mapSelection,bool &venceu,bool &voltarMenu,bool &fim,int &orientation,bool &last){
     switch (x) {
             case 'w':
                 if (map[pli-1][pco] == wall) {
@@ -244,9 +281,9 @@ void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int &c
                     map[pli][pco]=door;
                 }
                 if(map[pli-1][pco] == exit){
-                    map[pli-1][pco] = player;
+                    map[pli-1][pco] = playerInExit;
                     map[pli][pco] = hollow;
-                    win(venceu,fim);
+                    last=true;
                 }
                  if(map[pli-1][pco] ==  hollow && map[pli][pco]==player) {
                     map[pli-1][pco] = player;
@@ -285,9 +322,9 @@ void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int &c
                     map[pli][pco]=door;
                 }
                   if(map[pli+1][pco] == exit){
-                    map[pli+1][pco] = player;
+                    map[pli+1][pco] = playerInExit;
                     map[pli][pco] = hollow;
-                    win(venceu,fim);
+                    last=true;
                 }
                    if(map[pli+1][pco] ==  hollow && map[pli][pco]==player) {
                     map[pli+1][pco] = player;
@@ -326,9 +363,9 @@ void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int &c
                     map[pli][pco]=door;
                 }
                 if(map[pli][pco-1] == exit){
-                    map[pli][pco-1] = player;
+                    map[pli][pco-1] = playerInExit;
                     map[pli][pco] = hollow;
-                    win(venceu,fim);
+                    last=true;
                 }
                  if(map[pli][pco-1] ==  hollow && map[pli][pco]==player) {
                     map[pli][pco-1] = player;
@@ -367,9 +404,9 @@ void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int &c
                     map[pli][pco]=door;
                 }
                 if(map[pli][pco+1] == exit){
-                    map[pli][pco+1] = player;
+                    map[pli][pco+1] = playerInExit;
                     map[pli][pco] = hollow;
-                    win(venceu,fim);
+                    last=true;
                 }
                 if(map[pli][pco+1] ==  hollow && map[pli][pco]==player) {
                     map[pli][pco+1] = player;
@@ -428,126 +465,24 @@ int getch(void) {
 int main() {
     printf("\033[?25l");
 
-    int pli, pco;
-    int options = 0;
-    int mapSelection = 0;
-    char x;
-    bool venceu = false;
-    bool voltarMenu= false;
-    bool fim = false;
-    bool desistiu = false;
-    bool currentGame=true;
-    int contRotates=0;
-    int contMovi=0;
-    int orientation=0;
-    
     int (*currentMap)[order];
     int (*currentMapReset)[order];
-    //a a s s d d d d d s s s q q q a a w a a s s d s d 
-    int map[order][order] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,1,0,1,6,0,0,1},
-    {1,0,0,0,0,0,2,0,1,0,0,0,0,1},
-    {1,0,0,0,0,1,1,0,1,1,0,0,1,1},
-    {1,0,0,0,0,0,0,0,0,0,1,0,0,1},
-    {1,0,0,1,0,0,3,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,1,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,1,1,0,4,0,0,1,1},
-    {1,0,0,0,0,0,0,6,0,0,0,1,0,1},
-    {1,0,0,0,1,0,0,1,0,0,1,5,0,1},
-    {1,0,0,1,0,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,0,0,0,1,0,3,6,1,0,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
-};
- int mapReset[order][order] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,1,0,1,6,0,0,1},
-    {1,0,0,0,0,0,2,0,1,0,0,0,0,1},
-    {1,0,0,0,0,1,1,0,1,1,0,0,1,1},
-    {1,0,0,0,0,0,0,0,0,0,1,0,0,1},
-    {1,0,0,1,0,0,3,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,1,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,1,1,4,0,0,0,1,1},
-    {1,0,0,0,0,0,0,6,0,0,0,1,0,1},
-    {1,0,0,0,1,0,0,1,0,0,1,5,0,1},
-    {1,0,0,1,0,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,0,0,0,1,0,3,6,1,0,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
-};
-    //w w w w d d d d w d d d e e a a a a
-  int map2[order][order] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,6,0,0,0,0,1,1},
-    {1,0,1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,1,6,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,1,0,0,1,0,1,0,1},
-    {1,0,0,0,0,0,0,0,1,0,0,0,0,1},
-    {1,0,0,0,1,0,0,0,4,3,0,0,5,1},
-    {1,0,0,0,0,0,0,1,1,1,1,0,0,1},
-    {1,0,0,0,3,0,0,0,0,1,0,0,1,1},
-    {1,0,0,0,1,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,1,0,6,1},
-    {1,2,0,0,0,0,0,1,0,1,0,0,0,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
-};
-  int map2Reset[order][order] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,6,0,0,0,0,1,1},
-    {1,0,1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,1,6,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,1,0,0,1,0,1,0,1},
-    {1,0,0,0,0,0,0,0,1,0,0,0,0,1},
-    {1,0,0,0,1,0,0,0,4,3,0,0,5,1},
-    {1,0,0,0,0,0,0,1,1,1,1,0,0,1},
-    {1,0,0,0,3,0,0,0,0,1,0,0,1,1},
-    {1,0,0,0,1,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,1,0,6,1},
-    {1,2,0,0,0,0,0,1,0,1,0,0,0,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
-};
+
+//Map 1 Solution:
+//a a s s d d d d d s s s q q q a a w a a s s d s d 
+
+//Map 2 solution:
+ //w w w w d d d d w d d d e e a a a a
+
+//Map hard Solution:
 //w w w w w a a w a a a a a e e e w w w w d d d d w d d d s
-int mapHard[order][order] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,1,0,0,1,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,1,0,0,0,0,0,1,1,0,1},
-    {1,0,0,0,0,0,0,0,0,1,0,0,0,1},
-    {1,0,0,4,0,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,0,1,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,1,0,0,0,0,1},
-    {1,6,0,0,0,0,0,0,0,0,0,6,0,1},
-    {1,0,0,0,1,0,6,6,0,0,0,0,0,1},
-    {1,0,0,1,0,0,0,1,0,0,2,0,0,1},
-    {1,0,0,0,3,0,1,5,3,1,1,0,3,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
-};
-int mapHardReset[order][order] = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,1,0,0,1,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,1,0,0,0,0,0,1,1,0,1},
-    {1,0,0,0,0,0,0,0,0,1,0,0,0,1},
-    {1,0,0,4,0,0,0,0,0,1,0,0,0,1},
-    {1,0,0,0,0,1,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,1,0,0,0,0,1},
-    {1,6,0,0,0,0,0,0,0,0,0,6,0,1},
-    {1,0,0,0,1,0,6,6,0,0,0,0,0,1},
-    {1,0,0,1,0,0,0,1,0,0,2,0,0,1},
-    {1,0,0,0,3,0,1,5,3,1,1,0,3,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
-};
+
 while (options!=4){
     cout << "\n1-Sobre 2-Novo jogo 3-Continuar 4-Fim\n";
     cin >> options;
 
     if (options == 1) {
-        exibirSobre();
+        about();
         getch();
         cout << "\n1-Sobre 2-Novo jogo 3-Continuar 4-Fim\n";
         cin >> options;
@@ -564,13 +499,11 @@ while (options!=4){
         contMovi=0;
         orientation=0;
         venceu=false;
-        voltarMenu=false;
         fim=false;
     }
 
     if (options == 3 && contMovi>0) {
         fim=false;
-        voltarMenu=false;
     }
     if(options == 4){
         fim=true;
@@ -582,13 +515,11 @@ while (options!=4){
     }
     while (!fim && !venceu) {
         system("clear");  
-        mapGenerate(currentMap,contRotates,contMovi,orientation,mapSelection);
+        mapGenerate(currentMap,contRotates,contMovi,orientation,mapSelection,venceu,fim,last);
 
         x = getch();
-        movi(x,currentMap,currentMapReset,pli,pco,contRotates,contMovi,mapSelection,venceu,voltarMenu,fim,orientation);
-        if(voltarMenu){
-            fim=true;
-        }
+        movi(x,currentMap,currentMapReset,pli,pco,contRotates,contMovi,mapSelection,venceu,voltarMenu,fim,orientation,last);
+      
     }
 
 
