@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <sstream>
 #include <termios.h>
 #include <unistd.h>
 #define order 14
@@ -18,20 +19,17 @@
 #define playerInExit 10
 using namespace std;
 
+struct Position{
+    int row;
+    int column;
+};
 struct Map{
-    int mapSelection;
     int mapOrder;
-    int mapReset;
-    int currentMap;
-    int contRotates;
-    int contMovi;
-    int pli;
-    int pco;
     int numMap;
-
+    string MapName;
+    int map[21][21];
 };
 struct Game{
-    int options;
     char keyB;
     bool venceu;
     bool voltarMenu;
@@ -40,7 +38,14 @@ struct Game{
     bool currentGame;
     bool last;
     int orientation;
-    
+    int contRotates;
+    int contMovi;
+    Position position;
+    Map currentMap;
+    Map mapReset;
+};
+struct Menu{
+    int options;
 };
 void about() {
     cout << "==================================================" << endl;
@@ -65,126 +70,145 @@ void about() {
 }
 void readMap(Map &currentMap){
     ifstream file;
-    file.open("Mapa"+to_string(currentMap.numMap)+".csv");
+    string element,dimension,mapName;
+    int i=0,j;
+    file.open("Mapas/map"+to_string(currentMap.numMap)+".csv");
+
+    if(!file.is_open()){
+        cout<<"Erro ao abrir o arquivo";
+        return;
+    }
+    getline(file,dimension);//pega a dimensao e atribui pra o map order da struct map
+    currentMap.mapOrder=stoi(dimension);
+
+    getline(file,mapName);
+    currentMap.MapName=mapName;
+
+    while(i<=currentMap.mapOrder-1){
+        getline(file,element);
+        stringstream ss(element);
+        j=0;
+            while(getline(ss,element,',')){
+                currentMap.map[i][j]=stoi(element);
+                j++;
+            }
+        i++;
+    }
+
+
 }
 
-void defineCoordinates(Map &currentMap){
-    if (currentMap.mapSelection == 1) {
-        currentMap.pli = 3;
-        currentMap.pco = 6;
+void defineCoordinates(Game &game){
+    if (game.currentMap.numMap == 1) {
+        game.position.row = 3;
+        game.position.column = 6;
     }
-    if (currentMap.mapSelection == 2) {
-        currentMap.pli = 12;
-        currentMap.pco = 1;
+    if (game.currentMap.numMap == 2) {
+        game.position.row = 12;
+        game.position.column = 1;
     }
-    if (currentMap.mapSelection == 3) {
-        currentMap.pli = 11;
-        currentMap.pco = 10;
-    }
-}
-void reset(Map &currentMap){
-    if (currentMap.mapSelection == 1 || currentMap.mapSelection == 2 || currentMap.mapSelection == 3) {
-        for (int i = 0; i < line; i++) {
-            for (int j = 0; j < collum; j++) {
-                map[i][j] = mapReset[i][j];
-            }
-        }
-        // Depois de restaurar o mapa, restaur
-        // também a posição inicial do jogador.
-        defineCoordinates(currentMap);
+    if (game.currentMap.numMap == 3) {
+        game.position.row = 11;
+        game.position.column = 10;
     }
 }
-void selection(){
-    switch(mapSelection){
-        case 1:
-            currentMap=map;
-            currentMapReset=mapReset;
-            break;
-        case 2:
-            currentMap=map2;
-            currentMapReset=map2Reset;
-            break;
-        case 3:
-            currentMap=mapHard;
-            currentMapReset=mapHardReset;
-            break;
-    }
-}  
-void win(bool &venceu,bool &fim){
-    venceu=true;
+void reset(Game &game){
+    game.currentMap = game.mapReset;
+    defineCoordinates(game);
+    game.contRotates = 0;
+    game.contMovi = 0;
+    game.orientation = 0;
+    game.venceu = false;
+    game.fim = false;
+    game.last = false;
+}
+void selection(Game &game){
+    game.currentMap.numMap = game.mapReset.numMap;
+    readMap(game.currentMap);
+    game.mapReset = game.currentMap;
+    defineCoordinates(game);
+    game.contRotates = 0;
+    game.contMovi = 0;
+    game.orientation = 0;
+    game.venceu = false;
+    game.fim = false;
+    game.last = false;
+}
+void win(Game &game){
+    game.venceu=true;
             cout << "\n==========================================" << endl;
             cout << "        PARABENS! Voce venceu!           " << endl;
             cout << "==========================================" << endl;
-    fim=true;
+    game.fim=true;
 }
-void smashed(bool &venceu,bool &fim){
-    venceu=true;
+void smashed(Game &game){
+    game.venceu=true;
             cout << "\n==========================================" << endl;
             cout << "        PARABENS! Voce foi esmagado!           " << endl;
             cout << "==========================================" << endl;
-    fim=true;
+    game.fim=true;
 }
-void mapRotationNormal(int map[][collum],int &pli,int &pco,int &contRotates){
+void mapRotationNormal(Game &game){
    int N = order; // Tamanho da map NxN
 for (int i = 0; i < N / 2; i++) {
     for (int j = i; j < N - i - 1; j++) {
-        int temp = map[i][j];
-        map[i][j] = map[N - 1 - j][i];
-        map[N - 1 - j][i] = map[N - 1 - i][N - 1 - j];
-        map[N - 1 - i][N - 1 - j] = map[j][N - 1 - i];
-        map[j][N - 1 - i] = temp;
+        int temp = game.currentMap.map[i][j];
+        game.currentMap.map[i][j] = game.currentMap.map[N - 1 - j][i];
+        game.currentMap.map[N - 1 - j][i] = game.currentMap.map[N - 1 - i][N - 1 - j];
+        game.currentMap.map[N - 1 - i][N - 1 - j] = game.currentMap.map[j][N - 1 - i];
+        game.currentMap.map[j][N - 1 - i] = temp;
     }
-}   int newPli=pco;
-    int newPco=N-1-pli;
+}   int newPli=game.position.column;
+    int newPco=N-1-game.position.row;
 
-    pli=newPli;
-    pco=newPco;
-    contRotates ++;
+    game.position.row=newPli;
+    game.position.column=newPco;
+    game.contRotates ++;
     }
 //nova linha = coluna antiga
 //nova coluna = N - linha antiga
-void mapRotationAnti(int map[][collum],int &pli,int &pco,int &contRotates){
+void mapRotationAnti(Game &game){
     int N=order;
     for(int i=0;i<N/2;i++){
         for(int j=0;j<(N+1)/2;j++){
-            int temp = map[i][j];
-                map[i][j] = map[j][N - 1 - i];
-                map[j][N - 1 - i] = map[N - 1 - i][N - 1 - j];
-                map[N - 1 - i][N - 1 - j] = map[N - 1 - j][i];
-                map[N - 1 - j][i] = temp;
+            int temp = game.currentMap.map[i][j];
+                game.currentMap.map[i][j] = game.currentMap.map[j][N - 1 - i];
+                game.currentMap.map[j][N - 1 - i] = game.currentMap.map[N - 1 - i][N - 1 - j];
+                game.currentMap.map[N - 1 - i][N - 1 - j] = game.currentMap.map[N - 1 - j][i];
+                game.currentMap.map[N - 1 - j][i] = temp;
         }
     }
-    int newPco=pli;
-    int newPli=N-1-pco;
+    int newPco=game.position.row;
+    int newPli=N-1-game.position.column;
 
-    pli=newPli;
-    pco=newPco;
-    contRotates++;
+    game.position.row=newPli;
+    game.position.column=newPco;
+    game.contRotates++;
 }
-void gravity(int map[][order], int contRotates,bool &fim,bool &venceu)
+void gravity(Game &game)
 {
     for(int i = order - 2; i >= 0; i--){
         for(int j = 0; j < order; j++){
-             if(map[i][j] != box)
+             if(game.currentMap.map[i][j] != box)
                 continue;
             int linha = i;
             while(linha + 1 < order){
                 bool podeCair = false;
 
-                if(map[linha + 1][j] == hollow){
+                if(game.currentMap.map[linha + 1][j] == hollow){
                     podeCair = true;
                 }
                 // Porta aberta
-                if(map[linha + 1][j] == door && contRotates % 2 != 0){
+                if(game.currentMap.map[linha + 1][j] == door && game.contRotates % 2 != 0){
                     podeCair = true;
                 }
-                if(map[linha+1][j] == player || map[linha+1][j] == playerInLever || map[linha+1][j]==playerIn){
-                   smashed(venceu,fim);
+                if(game.currentMap.map[linha+1][j] == player || game.currentMap.map[linha+1][j] == playerInLever || game.currentMap.map[linha+1][j]==playerIn){
+                   smashed(game);
                     break;
                 }
                 if(podeCair){
-                    map[linha + 1][j] = box;
-                    map[linha][j] = hollow;
+                    game.currentMap.map[linha + 1][j] = box;
+                    game.currentMap.map[linha][j] = hollow;
                     linha++;
                 }
                 else{
@@ -194,14 +218,14 @@ void gravity(int map[][order], int contRotates,bool &fim,bool &venceu)
         }
     }
 }
-void mapGenerate(int map[][order], int contRotates,int contMovi,int orientation,int mapSelection,bool venceu,bool fim,bool last) {
-     cout<<"Movimentos:"<<contMovi <<endl;
-    cout<<"Rotações:"<<contRotates << endl;
-    cout<<"Orientação:"<<orientation <<endl;
-    cout<<"Mapa:"<<mapSelection << endl;
+void mapGenerate(Game &game) {
+     cout<<"Movimentos:"<<game.contMovi <<endl;
+    cout<<"Rotações:"<<game.contRotates << endl;
+    cout<<"Orientação:"<<game.orientation <<endl;
+    cout<<"Mapa:"<<game.currentMap.numMap << endl;
     for (int i = 0; i < line; i++) {
         for (int j = 0; j < collum; j++) {
-            switch (map[i][j]) {
+            switch (game.currentMap.map[i][j]) {
                 case hollow:
                     cout << " ";
                     break;
@@ -227,7 +251,7 @@ void mapGenerate(int map[][order], int contRotates,int contMovi,int orientation,
                     cout<< "+";
                     break;
                     case door:
-                    if (contRotates % 2 == 0){
+                    if (game.contRotates % 2 == 0){
                         cout << "=";  // fechada
                     }
                     else{
@@ -241,212 +265,212 @@ void mapGenerate(int map[][order], int contRotates,int contMovi,int orientation,
                     cout << " ";
                     break;
             }
-            if(last){
-                win(venceu,fim);
+            if(game.last){
+                win(game);
                 break;
             }
         }
         cout << endl;
     }
 }
-void movi(char x,int map[][order],int mapReset[][order],int &pli,int &pco,int &contRotates,int &contmovi,int mapSelection,bool &venceu,bool &voltarMenu,bool &fim,int &orientation,bool &last){
-    switch (x) {
+void movi(Game &game){
+    switch (game.keyB) {
             case 'w':
-                if (map[pli-1][pco] == wall) {
+                if (game.currentMap.map[game.position.row-1][game.position.column] == wall) {
                     break;
                 }
-                 if (map[pli-1][pco] == box) {
+                 if (game.currentMap.map[game.position.row-1][game.position.column] == box) {
+                    break;
+                    }
+                 if (game.currentMap.map[game.position.row-1][game.position.column] == door && game.contRotates % 2 ==0) {
                     break;
                 }
-                 if (map[pli-1][pco] == door && contRotates % 2 ==0) {
-                    break;
-                }
-                 if (map[pli-1][pco] == door && contRotates % 2 != 0) {
-                     map[pli-1][pco] = playerIn;
-                      map[pli][pco] = hollow;
+                 if (game.currentMap.map[game.position.row-1][game.position.column] == door && game.contRotates % 2 != 0) {
+                     game.currentMap.map[game.position.row-1][game.position.column] = playerIn;
+                      game.currentMap.map[game.position.row][game.position.column] = hollow;
                 }
                  
-                if (map[pli-1][pco] == lever) {
-                    map[pli-1][pco] = playerInLever;
-                    map[pli][pco]=hollow;
+                if (game.currentMap.map[game.position.row-1][game.position.column] == lever) {
+                    game.currentMap.map[game.position.row-1][game.position.column] = playerInLever;
+                    game.currentMap.map[game.position.row][game.position.column]=hollow;
 
                 }
-                if (map[pli][pco] == playerInLever) {
-                    map[pli][pco] = lever;
-                    map[pli-1][pco] = player;
+                if (game.currentMap.map[game.position.row][game.position.column] == playerInLever) {
+                    game.currentMap.map[game.position.row][game.position.column] = lever;
+                    game.currentMap.map[game.position.row-1][game.position.column] = player;
 
                 }
-                if(map[pli][pco]== playerIn && map[pli-1][pco]==hollow){
-                    map[pli-1][pco]=player;
-                    map[pli][pco]=door;
+                if(game.currentMap.map[game.position.row][game.position.column]== playerIn && game.currentMap.map[game.position.row-1][game.position.column]==hollow){
+                    game.currentMap.map[game.position.row-1][game.position.column]=player;
+                    game.currentMap.map[game.position.row][game.position.column]=door;
                 }
-                if(map[pli-1][pco] == exit){
-                    map[pli-1][pco] = playerInExit;
-                    map[pli][pco] = hollow;
-                    last=true;
+                if(game.currentMap.map[game.position.row-1][game.position.column] == exit){
+                    game.currentMap.map[game.position.row-1][game.position.column] = playerInExit;
+                    game.currentMap.map[game.position.row][game.position.column] = hollow;
+                    game.last=true;
                 }
-                 if(map[pli-1][pco] ==  hollow && map[pli][pco]==player) {
-                    map[pli-1][pco] = player;
-                    map[pli][pco] = hollow;
+                 if(game.currentMap.map[game.position.row-1][game.position.column] ==  hollow && game.currentMap.map[game.position.row][game.position.column]==player) {
+                    game.currentMap.map[game.position.row-1][game.position.column] = player;
+                    game.currentMap.map[game.position.row][game.position.column] = hollow;
                 }
               
-                pli--;
-                contmovi++;
+                game.position.row--;
+                game.contMovi++;
                 break;
 
             case 's':
-                if (map[pli+1][pco] == wall) {
+                if (game.currentMap.map[game.position.row+1][game.position.column] == wall) {
                     break;
                 }
-                 if (map[pli+1][pco] == box) {
+                 if (game.currentMap.map[game.position.row+1][game.position.column] == box) {
                     break;
                 }
-                 if (map[pli+1][pco] == door && contRotates % 2 ==0) {
+                 if (game.currentMap.map[game.position.row+1][game.position.column] == door && game.contRotates % 2 ==0) {
                     break;
                 }
-                 if (map[pli+1][pco] == door && contRotates % 2 != 0) {
-                     map[pli+1][pco] = playerIn;
-                      map[pli][pco] = hollow;
+                 if (game.currentMap.map[game.position.row+1][game.position.column] == door && game.contRotates % 2 != 0) {
+                     game.currentMap.map[game.position.row+1][game.position.column] = playerIn;
+                      game.currentMap.map[game.position.row][game.position.column] = hollow;
                 }
-                if (map[pli+1][pco] == lever) {
-                    map[pli+1][pco] = playerInLever;
-                    map[pli][pco]=hollow;
+                if (game.currentMap.map[game.position.row+1][game.position.column] == lever) {
+                    game.currentMap.map[game.position.row+1][game.position.column] = playerInLever;
+                    game.currentMap.map[game.position.row][game.position.column]=hollow;
                 }
-                if (map[pli][pco] == playerInLever) {
-                    map[pli][pco] = lever;
-                    map[pli+1][pco] = player;
+                if (game.currentMap.map[game.position.row][game.position.column] == playerInLever) {
+                    game.currentMap.map[game.position.row][game.position.column] = lever;
+                    game.currentMap.map[game.position.row+1][game.position.column] = player;
 
                 }
-                 if(map[pli][pco]== playerIn && map[pli+1][pco]==hollow){
-                    map[pli+1][pco]=player;
-                    map[pli][pco]=door;
+                 if(game.currentMap.map[game.position.row][game.position.column]== playerIn && game.currentMap.map[game.position.row+1][game.position.column]==hollow){
+                    game.currentMap.map[game.position.row+1][game.position.column]=player;
+                    game.currentMap.map[game.position.row][game.position.column]=door;
                 }
-                  if(map[pli+1][pco] == exit){
-                    map[pli+1][pco] = playerInExit;
-                    map[pli][pco] = hollow;
-                    last=true;
+                  if(game.currentMap.map[game.position.row+1][game.position.column] == exit){
+                    game.currentMap.map[game.position.row+1][game.position.column] = playerInExit;
+                    game.currentMap.map[game.position.row][game.position.column] = hollow;
+                    game.last=true;
                 }
-                   if(map[pli+1][pco] ==  hollow && map[pli][pco]==player) {
-                    map[pli+1][pco] = player;
-                    map[pli][pco] = hollow;
+                   if(game.currentMap.map[game.position.row+1][game.position.column] ==  hollow && game.currentMap.map[game.position.row][game.position.column]==player) {
+                    game.currentMap.map[game.position.row+1][game.position.column] = player;
+                    game.currentMap.map[game.position.row][game.position.column] = hollow;
                 }
                 
-                pli++;
-                contmovi++;
+                game.position.row++;
+                game.contMovi++;
                 break;
 
             case 'a':
-                if (map[pli][pco-1] == wall) {
+                if (game.currentMap.map[game.position.row][game.position.column-1] == wall) {
                     break;
                 }
-                  if (map[pli][pco-1] == box) {
+                  if (game.currentMap.map[game.position.row][game.position.column-1] == box) {
                     break;
                 }
-                 if (map[pli][pco-1] == door && contRotates %2 ==0) {
+                 if (game.currentMap.map[game.position.row][game.position.column-1] == door && game.contRotates %2 ==0) {
                     break;
                 }
-                if (map[pli][pco-1] == door && contRotates % 2 != 0) {
-                     map[pli][pco-1] = playerIn;
-                      map[pli][pco] = hollow;
+                if (game.currentMap.map[game.position.row][game.position.column-1] == door && game.contRotates % 2 != 0) {
+                     game.currentMap.map[game.position.row][game.position.column-1] = playerIn;
+                      game.currentMap.map[game.position.row][game.position.column] = hollow;
                 }
-                if (map[pli][pco-1] == lever) {
-                    map[pli][pco-1] = playerInLever;
-                     map[pli][pco]=hollow;
+                if (game.currentMap.map[game.position.row][game.position.column-1] == lever) {
+                    game.currentMap.map[game.position.row][game.position.column-1] = playerInLever;
+                     game.currentMap.map[game.position.row][game.position.column]=hollow;
 
                 }
-                if (map[pli][pco] == playerInLever) {
-                    map[pli][pco] = lever;
-                    map[pli][pco-1] = player;
+                if (game.currentMap.map[game.position.row][game.position.column] == playerInLever) {
+                    game.currentMap.map[game.position.row][game.position.column] = lever;
+                    game.currentMap.map[game.position.row][game.position.column-1] = player;
                 }
-                 if(map[pli][pco]== playerIn && map[pli][pco-1]==hollow){
-                    map[pli][pco-1]=player;
-                    map[pli][pco]=door;
+                 if(game.currentMap.map[game.position.row][game.position.column]== playerIn && game.currentMap.map[game.position.row][game.position.column-1]==hollow){
+                    game.currentMap.map[game.position.row][game.position.column-1]=player;
+                    game.currentMap.map[game.position.row][game.position.column]=door;
                 }
-                if(map[pli][pco-1] == exit){
-                    map[pli][pco-1] = playerInExit;
-                    map[pli][pco] = hollow;
-                    last=true;
+                if(game.currentMap.map[game.position.row][game.position.column-1] == exit){
+                    game.currentMap.map[game.position.row][game.position.column-1] = playerInExit;
+                    game.currentMap.map[game.position.row][game.position.column] = hollow;
+                    game.last=true;
                 }
-                 if(map[pli][pco-1] ==  hollow && map[pli][pco]==player) {
-                    map[pli][pco-1] = player;
-                    map[pli][pco] = hollow;
+                 if(game.currentMap.map[game.position.row][game.position.column-1] ==  hollow && game.currentMap.map[game.position.row][game.position.column]==player) {
+                    game.currentMap.map[game.position.row][game.position.column-1] = player;
+                    game.currentMap.map[game.position.row][game.position.column] = hollow;
                 }
-                pco--;
-                contmovi++;
+                game.position.column--;
+                game.contMovi++;
                 break;
 
             case 'd':
-                if (map[pli][pco+1] == wall) {
+                if (game.currentMap.map[game.position.row][game.position.column+1] == wall) {
                     break;
                 }
-                 if (map[pli][pco+1] == box) {
+                 if (game.currentMap.map[game.position.row][game.position.column+1] == box) {
                     break;
                 }
-                if (map[pli][pco+1] == door && contRotates % 2 ==0) {
+                if (game.currentMap.map[game.position.row][game.position.column+1] == door && game.contRotates % 2 ==0) {
                     break;
                 }
-                  if (map[pli][pco+1] == door && contRotates % 2 != 0) {
-                     map[pli][pco+1] = playerIn;
-                      map[pli][pco] = hollow;
+                  if (game.currentMap.map[game.position.row][game.position.column+1] == door && game.contRotates % 2 != 0) {
+                     game.currentMap.map[game.position.row][game.position.column+1] = playerIn;
+                      game.currentMap.map[game.position.row][game.position.column] = hollow;
                 }
-                if (map[pli][pco+1] == lever) {
-                    map[pli][pco+1] = playerInLever;
-                    map[pli][pco]=hollow;
+                if (game.currentMap.map[game.position.row][game.position.column+1] == lever) {
+                    game.currentMap.map[game.position.row][game.position.column+1] = playerInLever;
+                    game.currentMap.map[game.position.row][game.position.column]=hollow;
 
                 }
-                if (map[pli][pco] == playerInLever) {
-                    map[pli][pco] = lever;
-                    map[pli][pco+1] = player;
+                if (game.currentMap.map[game.position.row][game.position.column] == playerInLever) {
+                    game.currentMap.map[game.position.row][game.position.column] = lever;
+                    game.currentMap.map[game.position.row][game.position.column+1] = player;
 
                 }
-                 if(map[pli][pco]== playerIn && map[pli][pco+1]==hollow){
-                    map[pli][pco+1]=player;
-                    map[pli][pco]=door;
+                 if(game.currentMap.map[game.position.row][game.position.column]== playerIn && game.currentMap.map[game.position.row][game.position.column+1]==hollow){
+                    game.currentMap.map[game.position.row][game.position.column+1]=player;
+                    game.currentMap.map[game.position.row][game.position.column]=door;
                 }
-                if(map[pli][pco+1] == exit){
-                    map[pli][pco+1] = playerInExit;
-                    map[pli][pco] = hollow;
-                    last=true;
+                if(game.currentMap.map[game.position.row][game.position.column+1] == exit){
+                    game.currentMap.map[game.position.row][game.position.column+1] = playerInExit;
+                    game.currentMap.map[game.position.row][game.position.column] = hollow;
+                    game.last=true;
                 }
-                if(map[pli][pco+1] ==  hollow && map[pli][pco]==player) {
-                    map[pli][pco+1] = player;
-                    map[pli][pco] = hollow;
+                if(game.currentMap.map[game.position.row][game.position.column+1] ==  hollow && game.currentMap.map[game.position.row][game.position.column]==player) {
+                    game.currentMap.map[game.position.row][game.position.column+1] = player;
+                    game.currentMap.map[game.position.row][game.position.column] = hollow;
                 }
 
-                pco++;
-                contmovi++;     
+                game.position.column++;
+                game.contMovi++;
                 break;
                 case 'q':
-                if(map[pli][pco]==playerInLever){
-                    mapRotationAnti(map,pli,pco,contRotates);
-                    gravity(map,contRotates,fim,venceu);
-                    if(orientation==270 || orientation==-270){
-                        orientation=0;
+                if(game.currentMap.map[game.position.row][game.position.column]==playerInLever){
+                    mapRotationAnti(game);
+                    gravity(game);
+                    if(game.orientation==270 || game.orientation==-270){
+                        game.orientation=0;
                         break;
                     }
-                    orientation-=90;
+                    game.orientation-=90;
                 }
                     break;
                 case 'e':
-                if(map[pli][pco]==playerInLever){
-                    mapRotationNormal(map,pli,pco,contRotates);
-                    gravity(map,contRotates,fim,venceu);
-                     if(orientation==270 || orientation==-270){
-                        orientation=0;
+                if(game.currentMap.map[game.position.row][game.position.column]==playerInLever){
+                    mapRotationNormal(game);
+                    gravity(game);
+                     if(game.orientation==270 || game.orientation==-270){
+                        game.orientation=0;
                         break;
                     }
-                    orientation+=90;
+                    game.orientation+=90;
                 }
                     break;
                 case 'r':
-                     reset(mapSelection,mapReset,map,pli,pco);
-                     contRotates=0;
-                        contmovi=0;
-                        orientation=0;
+                     reset(game);
+                     game.contRotates=0;
+                        game.contMovi=0;
+                        game.orientation=0;
                         break;
                     case 'k':
-                    fim=true;
-                    voltarMenu=true;
+                    game.fim=true;
+                    game.voltarMenu=true;
                     break;
             }
 }
@@ -464,9 +488,9 @@ int getch(void) {
 
 int main() {
     printf("\033[?25l");
-
-    int (*currentMap)[order];
-    int (*currentMapReset)[order];
+    Game game = {};
+    Menu menu = {};
+    game.fim = true;
 
 //Map 1 Solution:
 //a a s s d d d d d s s s q q q a a w a a s s d s d 
@@ -477,53 +501,44 @@ int main() {
 //Map hard Solution:
 //w w w w w a a w a a a a a e e e w w w w d d d d w d d d s
 
-while (options!=4){
-    cout << "\n1-Sobre 2-Novo jogo 3-Continuar 4-Fim\n";
-    cin >> options;
-
-    if (options == 1) {
-        about();
-        getch();
+    while (menu.options != 4){
         cout << "\n1-Sobre 2-Novo jogo 3-Continuar 4-Fim\n";
-        cin >> options;
-    }
+        cin >> menu.options;
 
-    if (options == 2) {
-        cout << "Digite 1 para o mapa map1,2 para map2 e 3 para o mapa difícil: ";
-        cin >> mapSelection;
-        if(contMovi>0){
-            reset(mapSelection,currentMapReset,currentMap,pli,pco);
+        if (menu.options == 1) {
+            about();
+            getch();
         }
 
-        contRotates=0;
-        contMovi=0;
-        orientation=0;
-        venceu=false;
-        fim=false;
-    }
+        if (menu.options == 2) {
+            cout << "Digite 1 para o mapa map1,2 para map2 e 3 para o mapa difícil: ";
+            cin >> game.mapReset.numMap;
+            selection(game);
+            game.currentGame = true;
+        }
 
-    if (options == 3 && contMovi>0) {
-        fim=false;
-    }
-    if(options == 4){
-        fim=true;
-        return 0;
-    }
-    if(options!=3){
-        selection(mapSelection,mapReset,map,currentMap,currentMapReset,map2,map2Reset,mapHard,mapHardReset);    
-        defineCoordinates(pli,pco,mapSelection);
-    }
-    while (!fim && !venceu) {
-        system("clear");  
-        mapGenerate(currentMap,contRotates,contMovi,orientation,mapSelection,venceu,fim,last);
+        if (menu.options == 3) {
+            if (game.currentGame) {
+                game.fim = false;
+            }
+            else {
+                cout << "Nao existe uma partida para continuar." << endl;
+            }
+        }
 
-        x = getch();
-        movi(x,currentMap,currentMapReset,pli,pco,contRotates,contMovi,mapSelection,venceu,voltarMenu,fim,orientation,last);
-      
+        if (menu.options == 4){
+            game.fim = true;
+            return 0;
+        }
+
+        while (!game.fim && !game.venceu) {
+            system("clear");
+            mapGenerate(game);
+
+            game.keyB = getch();
+            movi(game);
+        }
     }
-
-
-}
     return 0;
 }
 //Passagem por valor nao precisa de backup das mapes OKK
