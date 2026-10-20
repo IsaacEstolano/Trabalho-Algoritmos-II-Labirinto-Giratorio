@@ -19,6 +19,7 @@
 #define playerInExit 10
 using namespace std;
 
+
 struct Position{
     int row;
     int column;
@@ -43,6 +44,7 @@ struct Game{
     Position position;
     Map currentMap;
     Map mapReset;
+    Map mapCopy;
 };
 struct Menu{
     int options;
@@ -71,7 +73,8 @@ void about() {
 void readMap(Map &currentMap){
     ifstream file;
     string element,dimension,mapName;
-    int i=0,j;
+    int i=0,j,playersQuantitiy=0,exitPresence=0;
+    int mapCopy[21][21];
     file.open("Mapas/map"+to_string(currentMap.numMap)+".csv");
 
     if(!file.is_open()){
@@ -79,10 +82,26 @@ void readMap(Map &currentMap){
         return;
     }
     getline(file,dimension);//pega a dimensao e atribui pra o map order da struct map
+    if(!getline(file,dimension)){
+        cout<<"Sem dimensão";
+        return;
+    }
+    if(dimension.empty()){
+        cout<<"Dimensão Inválida";
+        return;
+    }
     currentMap.mapOrder=stoi(dimension);
+    if(currentMap.mapOrder<11 || currentMap.mapOrder>21){
+        cout<<"Dimensão Inválida";
+        return;
+    }
 
     getline(file,mapName);
     currentMap.MapName=mapName;
+    if(currentMap.MapName.empty()){
+        cout<<"Titulo ausente";
+        return;
+    }
 
     while(i<=currentMap.mapOrder-1){
         getline(file,element);
@@ -90,12 +109,29 @@ void readMap(Map &currentMap){
         j=0;
             while(getline(ss,element,',')){
                 currentMap.map[i][j]=stoi(element);
+                mapCopy[i][j]=currentMap.map[i][j];
+                if(currentMap.map[i][j]<0 || currentMap.map[i][j]>=7){
+                    cout<<"O mapa tem valores númericos inválidos";
+                    return;
+                }
+                if(currentMap.map[i][j]==2){
+                    playersQuantitiy++;
+                    if(playersQuantitiy>1){
+                        cout<<"Quantidade de jogadores ultrapassa o limite";
+                        return;
+                    }
+                }
+                if(currentMap.map[i][j]==5){
+                    exitPresence++;
+                }
                 j++;
             }
         i++;
     }
-
-
+    if(exitPresence==0){
+        cout<<"O jogo não apresenta nenhuma saída";
+        return;
+    }
 }
 
 void defineCoordinates(Game &game){
