@@ -33,9 +33,8 @@ struct Map{
 };
 struct Game{
     char keyB;
-    bool venceu;
     bool voltarMenu;
-    bool fim;
+    bool end;
     bool desistiu;
     bool currentGame;
     bool last;
@@ -45,6 +44,10 @@ struct Game{
     Position position;
     Map currentMap;
     Map mapOrigin;
+};
+struct OperationResult{
+    bool success;
+    string reason;
 };
 struct Menu{
     int options;
@@ -72,18 +75,16 @@ void about() {
 }
 
 void win(Game &game){
-    game.venceu=true;
+    game.end=true;
             cout << "\n==========================================" << endl;
             cout << "        PARABENS! Voce venceu!           " << endl;
             cout << "==========================================" << endl;
-    game.fim=true;
 }
 void smashed(Game &game){
-    game.venceu=true;
+    game.end=true;
             cout << "\n==========================================" << endl;
             cout << "        Voce foi esmagado. Derrota!      " << endl;
             cout << "==========================================" << endl;
-    game.fim=true;
 }
 void gravity(Game &game)
 {
@@ -123,10 +124,6 @@ bool stableMap(const Game &jogoOriginal)
     Game jogoTeste = jogoOriginal;
     gravity(jogoTeste);
 
-    /*if (jogoTeste.venceu) {
-        return false;
-    }*/
-
     int size = jogoOriginal.currentMap.mapOrder;
 
     for (int i = 0; i < size; i++) {
@@ -139,7 +136,7 @@ bool stableMap(const Game &jogoOriginal)
 
     return true;
 }
-bool readMap(Map &currentMap,Game gameCopy,string &reason){
+OperationResult readMap(Map &currentMap,Game gameCopy){
     ifstream file;
     string element,dimension,mapName;
     int playersQuantity=0,exitPresence=0;
@@ -147,63 +144,52 @@ bool readMap(Map &currentMap,Game gameCopy,string &reason){
     file.open("Mapas/map"+to_string(currentMap.numMap)+".csv");
 
     if(!file.is_open()){
-        reason="Erro ao abrir o arquivo";
-        return false;
+        return {false,"Erro ao abrir o arquivo"};
     }
     if(!getline(file,dimension)){
-        reason="Sem dimensão";
-        return false;
+        return {false,"Sem dimensão"};
     }
     if(dimension.empty()){
-        reason="Dimensão vazia";
-        return false;
+        return {false,"Dimensão vazia"};
     }
     stringstream dimensionStream(dimension);
     int mapOrder;
     string extra;
     if(!(dimensionStream >> mapOrder) || (dimensionStream >> extra)){
-        reason="Dimensão não numérica ou inválida";
-        return false;
+        return {false,"Dimensão não numérica ou inválida"};
     }
     if(mapOrder<11 || mapOrder>21){
-        reason="Dimensão Inválida";
-        return false;
+        return {false,"Dimensão Inválida"};
     }
     loadedMap.mapOrder=mapOrder;
 
     if(!getline(file,mapName) || mapName.empty()){
-        reason="Titulo ausente";
-        return false;
+        return {false,"Titulo ausente"};
     }
     loadedMap.MapName=mapName;
 
     for(int i=0;i<mapOrder;i++){
         if(!getline(file,element)){
-            reason="Quantidade de linhas invalida";
-            return false;
+            return {false,"Quantidade de linhas invalida"};
         }
         if(element.empty() || element.back()==','){
-            reason="Quantidade de colunas invalida";
-            return false;
+            return {false,"Quantidade de colunas invalida"};
         }
         stringstream rowStream(element);
         string cell;
         int j=0;
         while(getline(rowStream,cell,',')){
             if(j>=mapOrder){
-                reason="Quantidade de colunas invalida";
-                return false;
+                return {false,"Quantidade de colunas invalida"};
             }
             stringstream cellStream(cell);
             int value;
             string cellExtra;
             if(!(cellStream >> value) || (cellStream >> cellExtra)){
-                reason="Valor do mapa não numérico ou inválido";
-                return false;
+                return {false,"Valor do mapa não numérico ou inválido"};
             }
             if(value<0 || value>7){
-                reason="O mapa tem valores numéricos inválidos";
-                return false;
+                return {false,"O mapa tem valores numéricos inválidos"};
             }
             loadedMap.map[i][j]=value;
             if(value==2){
@@ -215,28 +201,23 @@ bool readMap(Map &currentMap,Game gameCopy,string &reason){
             j++;
         }
         if(j!=mapOrder){
-            reason="Quantidade de colunas invalida";
-            return false;
+            return {false,"Quantidade de colunas invalida"};
         }
     }
     if(playersQuantity!=1){
-        reason="O mapa deve apresentar exatamente um jogador";
-        return false;
+        return {false,"O mapa deve apresentar exatamente um jogador"};
     }
     if(exitPresence==0){
-        reason="O jogo não apresenta nenhuma saída";
-        return false;
+        return {false,"O jogo não apresenta nenhuma saída"};
     }
     gameCopy.currentMap=loadedMap;
     gameCopy.orientation=0;
     gameCopy.contRotates=0;
     if(!stableMap(gameCopy)){
-        reason="O jogo começa com blocos no ar";
-        return false;
+        return {false,"O jogo começa com blocos no ar"};
     }
     currentMap=loadedMap;
-    reason.clear();
-    return true;
+    return {true,""};
 }
 
 void defineCoordinates(Game &game){
@@ -259,25 +240,23 @@ void reset(Game &game){
     game.contRotates = 0;
     game.contkeys = 0;
     game.orientation = 0;
-    game.venceu = false;
-    game.fim = false;
+    game.end = false;
     game.last = false;
 }
-bool selection(Game &game,Game &gameCopy,string reason){
+OperationResult selection(Game &game,Game &gameCopy){
     game.currentMap.numMap = game.mapOrigin.numMap;
-    if(!readMap(game.currentMap,gameCopy,reason)){
-        cout<<reason<<endl;
-        return false;
+    OperationResult result=readMap(game.currentMap,gameCopy);
+    if(!result.success){
+        return result;
     }
     game.mapOrigin = game.currentMap;
     defineCoordinates(game);
     game.contRotates = 0;
     game.contkeys = 0;
     game.orientation = 0;
-    game.venceu = false;
-    game.fim = false;
+    game.end = false;
     game.last = false;
-    return true;
+    return {true,""};
 }
 void mapRotationNormal(Game &game){
    int N = game.currentMap.mapOrder; // size da map NxN
@@ -366,7 +345,7 @@ void mapGenerate(Game &game) {
         }
         cout << endl;
     }
-    if(game.last && !game.venceu){
+    if(game.last && !game.end){
         win(game);
     }
 }
@@ -428,6 +407,73 @@ bool verifyGameOrientation(Game &game){
         return true;
         }
         return false;
+    }
+OperationResult saveGame(const Game &game){
+        ofstream file;
+        int size=game.currentMap.mapOrder;
+    
+        if(size<11 || size>21){
+            return {false,"Dimensão inválida para salvar o jogo"};
+        }
+        if(game.mapOrigin.mapOrder!=size){
+            return {false,"Mapa original inválido para salvar o jogo"};
+        }
+    
+        file.open("jogo_salvo.csv");
+    
+        if(!file.is_open()){
+            return {false,"Erro ao abrir o arquivo do jogo salvo"};
+        }
+    
+        file << game.currentMap.numMap << ",";
+        file << game.currentMap.mapOrder << ",";
+        file << game.orientation << ",";
+        file << game.contRotates << ",";
+        file << game.contkeys << ",";
+        file << game.position.row << ",";
+        file << game.position.column << endl;
+    
+        file << game.currentMap.MapName << endl;
+    
+        for(int i=0;i<size;i++){
+            for(int j=0;j<size;j++){
+                file << game.currentMap.map[i][j];
+                if(j<size-1){
+                    file << ",";
+                }
+            }
+            file << endl;
+        }
+    
+        file << "MAPA_ORIGINAL" << endl;
+    
+        for(int i=0;i<size;i++){
+            for(int j=0;j<size;j++){
+                file << game.mapOrigin.map[i][j];
+                if(j<size-1){
+                    file << ",";
+                }
+            }
+            file << endl;
+        }
+    
+        file.close();
+    
+        if(file.fail()){
+            return {false,"Erro ao gravar o jogo salvo"};
+        }
+    
+        return {true,"Jogo salvo"};
+    }
+OperationResult verifySaveGame(Game &game){
+    int i=0;
+    cout<<"Digite 1 se deseja salvar seu jogo antes de voltar ao menu,se não aperte qualquer tecla:";
+    cin>>i;
+    if(i==1){
+       OperationResult result = saveGame(game);
+       return result;
+    }
+    return {false,"Erro ao salvar o jogo"};
 }
 void keys(Game &game,char keyB){
     switch (keyB) {
@@ -447,14 +493,16 @@ void keys(Game &game,char keyB){
                 if(verifyPlayerInLever(game)){
                     mapRotationAnti(game);
                     gravity(game);
-                    game.orientation=(game.orientation+270)%360;
+                    verifyGameOrientation(game);
+                    game.orientation+=90;
                 }
                     break;
                 case 'e':
                 if(verifyPlayerInLever(game)){
                     mapRotationNormal(game);
                     gravity(game);
-                    game.orientation=(game.orientation+90)%360;
+                    verifyGameOrientation(game);
+                    game.orientation+=90;
                 }
                     break;
                 case 'r':
@@ -463,13 +511,19 @@ void keys(Game &game,char keyB){
                         game.contkeys=0;
                         game.orientation=0;
                         break;
-                    case 'k':
-                    game.fim=true;
+                case 'k':
+                    OperationResult result=verifySaveGame(game);
+                    cout<<result.reason;
+                    if(!result.success && !result.reason.empty()){
+                        cout<<result.reason<<endl;
+                    }
+                    game.end=true;
                     game.voltarMenu=true;
                     break;
+                    
             }
 }
-bool mapSolution(Game &game,string &reason){
+OperationResult mapSolution(Game &game){
     ifstream file;
     string element;
     char keyToMov;
@@ -477,8 +531,7 @@ bool mapSolution(Game &game,string &reason){
     file.open("Soluções/map"+to_string(game.currentMap.numMap)+".sol");
 
     if(!file.is_open()){
-        reason="Erro ao abrir o arquivo";
-        return false;
+        return {false,"Erro ao abrir o arquivo"};
         //terminar mapSolution ,fazer mais 2 mapas,recordes e salvar jogo,depois disso finalmente verei um universo agradecido,e arrumar mensagem de vitoria
     }
     stringstream key(element);
@@ -489,69 +542,190 @@ bool mapSolution(Game &game,string &reason){
         system("clear");
         mapGenerate(game);
     }
-    return true;
+    return {true,""};
 }
-bool saveGame(const Game &game,string &reason){
-    ofstream file;
-    int size=game.currentMap.mapOrder;
-
-    if(size<11 || size>21){
-        reason="Dimensão inválida para salvar o jogo";
-        return false;
-    }
-    if(game.mapOrigin.mapOrder!=size){
-        reason="Mapa original inválido para salvar o jogo";
-        return false;
-    }
+OperationResult loadGame(Game &game){
+    ifstream file;
+    string element,metadata,mapName;
+    int savedValues[7];
+    int valuesQuantity=0;
+    Game loadedGame = {};
 
     file.open("jogo_salvo.csv");
 
     if(!file.is_open()){
-        reason="Erro ao abrir o arquivo do jogo salvo";
-        return false;
+        return {false,"Não existe um jogo salvo válido"};
+    }
+    if(!getline(file,metadata) || metadata.empty() || metadata.back()==','){
+        return {false,"Arquivo de jogo salvo vazio ou inválido"};
     }
 
-    file << game.currentMap.numMap << ",";
-    file << game.currentMap.mapOrder << ",";
-    file << game.orientation << ",";
-    file << game.contRotates << ",";
-    file << game.contkeys << ",";
-    file << game.position.row << ",";
-    file << game.position.column << endl;
+    stringstream metadataStream(metadata);
+    while(getline(metadataStream,element,',')){
+        if(valuesQuantity>=7){
+            return {false,"Dados de identificação do jogo inválidos"};
+        }
+        stringstream valueStream(element);
+        string extra;
+        if(!(valueStream >> savedValues[valuesQuantity]) || (valueStream >> extra)){
+            return {false,"Dados de identificação do jogo inválidos"};
+        }
+        valuesQuantity++;
+    }
+    if(valuesQuantity!=7){
+        return {false,"Dados de identificação do jogo incompletos"};
+    }
 
-    file << game.currentMap.MapName << endl;
+    int mapNumber=savedValues[0];
+    int size=savedValues[1];
+    int orientation=savedValues[2];
+    int rotations=savedValues[3];
+    int movements=savedValues[4];
+    int playerRow=savedValues[5];
+    int playerColumn=savedValues[6];
+
+    if(mapNumber<1){
+        return {false,"Número do mapa salvo inválido"};
+    }
+    if(size<11 || size>21){
+        return {false,"Dimensão do jogo salvo inválida"};
+    }
+    if(orientation<-270 || orientation>270 || orientation%90!=0){
+        return {false,"Orientação do jogo salvo inválida"};
+    }
+    if(rotations<0 || movements<0){
+        return {false,"Contadores do jogo salvo inválidos"};
+    }
+    if(playerRow<0 || playerRow>=size || playerColumn<0 || playerColumn>=size){
+        return {false,"Posição do jogador salva inválida"};
+    }
+    if(!getline(file,mapName) || mapName.empty()){
+        return {false,"Título do jogo salvo ausente"};
+    }
+
+    loadedGame.currentMap.numMap=mapNumber;
+    loadedGame.currentMap.mapOrder=size;
+    loadedGame.currentMap.MapName=mapName;
+    loadedGame.mapOrigin.numMap=mapNumber;
+    loadedGame.mapOrigin.mapOrder=size;
+    loadedGame.mapOrigin.MapName=mapName;
+    loadedGame.orientation=orientation;
+    loadedGame.contRotates=rotations;
+    loadedGame.contkeys=movements;
+    loadedGame.position.row=playerRow;
+    loadedGame.position.column=playerColumn;
+
+    int currentPlayersQuantity=0;
+    int currentPlayerRow=-1;
+    int currentPlayerColumn=-1;
+    int currentExitsQuantity=0;
 
     for(int i=0;i<size;i++){
-        for(int j=0;j<size;j++){
-            file << game.currentMap.map[i][j];
-            if(j<size-1){
-                file << ",";
-            }
+        if(!getline(file,element) || element.empty() || element.back()==','){
+            return {false,"Matriz atual do jogo salvo incompleta"};
         }
-        file << endl;
+        stringstream rowStream(element);
+        string cell;
+        int j=0;
+
+        while(getline(rowStream,cell,',')){
+            if(j>=size){
+                return {false,"Matriz atual do jogo salvo tem colunas extras"};
+            }
+            stringstream cellStream(cell);
+            string cellExtra;
+            int value;
+            if(!(cellStream >> value) || (cellStream >> cellExtra)){
+                return {false,"Valor inválido na matriz atual do jogo salvo"};
+            }
+            if(value<0 || value>10){
+                return {false,"Código inválido na matriz atual do jogo salvo"};
+            }
+
+            loadedGame.currentMap.map[i][j]=value;
+            if(value==player || value==playerIn || value==playerInLever || value==playerInExit){
+                currentPlayersQuantity++;
+                currentPlayerRow=i;
+                currentPlayerColumn=j;
+            }
+            if(value==exit || value==playerInExit){
+                currentExitsQuantity++;
+            }
+            j++;
+        }
+        if(j!=size){
+            return {false,"Matriz atual do jogo salvo tem colunas faltando"};
+        }
+    }
+    if(currentPlayersQuantity!=1){
+        return {false,"Matriz atual deve conter exatamente um jogador"};
+    }
+    if(currentExitsQuantity==0){
+        return {false,"Matriz atual do jogo salvo não contém saída"};
+    }
+    if(currentPlayerRow!=playerRow || currentPlayerColumn!=playerColumn){
+        return {false,"Posição salva não corresponde à matriz atual"};
     }
 
-    file << "MAPA_ORIGINAL" << endl;
+    if(!getline(file,element) || element!="MAPA_ORIGINAL"){
+        return {false,"Matriz original ausente no jogo salvo"};
+    }
+
+    int originalPlayersQuantity=0;
+    int exitsQuantity=0;
 
     for(int i=0;i<size;i++){
-        for(int j=0;j<size;j++){
-            file << game.mapOrigin.map[i][j];
-            if(j<size-1){
-                file << ",";
-            }
+        if(!getline(file,element) || element.empty() || element.back()==','){
+            return {false,"Matriz original do jogo salvo incompleta"};
         }
-        file << endl;
+        stringstream rowStream(element);
+        string cell;
+        int j=0;
+
+        while(getline(rowStream,cell,',')){
+            if(j>=size){
+                return {false,"Matriz original do jogo salvo tem colunas extras"};
+            }
+            stringstream cellStream(cell);
+            string cellExtra;
+            int value;
+            if(!(cellStream >> value) || (cellStream >> cellExtra)){
+                return {false,"Valor inválido na matriz original do jogo salvo"};
+            }
+            if(value<0 || value>7){
+                return {false,"Código inválido na matriz original do jogo salvo"};
+            }
+
+            loadedGame.mapOrigin.map[i][j]=value;
+            if(value==player){
+                originalPlayersQuantity++;
+            }
+            if(value==exit){
+                exitsQuantity++;
+            }
+            j++;
+        }
+        if(j!=size){
+            return {false,"Matriz original do jogo salvo tem colunas faltando"};
+        }
+    }
+    if(originalPlayersQuantity!=1 || exitsQuantity==0){
+        return {false,"Matriz original do jogo salvo não é válida"};
     }
 
-    file.close();
-
-    if(file.fail()){
-        reason="Erro ao gravar o jogo salvo";
-        return false;
+    if(getline(file,element) && !element.empty()){
+        return {false,"O arquivo de jogo salvo contém dados extras"};
     }
 
-    reason.clear();
-    return true;
+    loadedGame.keyB='\0';
+    loadedGame.voltarMenu=false;
+    loadedGame.end=false;
+    loadedGame.desistiu=false;
+    loadedGame.currentGame=true;
+    loadedGame.last=loadedGame.currentMap.map[playerRow][playerColumn]==playerInExit;
+
+    game=loadedGame;
+    return {true,"Jogo carregado"};
 }
 int getch(void) {
     int ch;
@@ -570,8 +744,7 @@ int main() {
     Game game = {};
     Menu menu = {};
     Game gameCopy = {};
-    game.fim = true;
-    string reason;
+    game.end = true;
     
 //Map 1 Solution:
 //a a s s d d d d d s s s q q q a a w a a s s d s d 
@@ -582,7 +755,7 @@ int main() {
 //Map hard Solution:
 //w w w w w a a w a a a a a e e e w w w w d d d d w d d d s
 
-    while (menu.options != 4){
+    while (menu.options != 6){
         cout << "\n1-Sobre 2-Novo jogo 3-Continuar 4-Ver soluções 5-Recordes 6-Fim\n";
         cin >> menu.options;
 
@@ -594,25 +767,35 @@ int main() {
         if (menu.options == 2) {
             cout << "Digite 1 para o mapa map1,2 para map2 e 3 para o mapa difícil: ";
             cin >> game.mapOrigin.numMap;
-            game.currentGame = selection(game,gameCopy,reason);
+            OperationResult result=selection(game,gameCopy);
+            game.currentGame=result.success;
+            if(!result.success){
+                cout<<result.reason<<endl;
+            }
         }
 
         if (menu.options == 3) {
-          
+            OperationResult result=loadGame(game);
+            if(!result.success){
+                cout<<result.reason<<endl;
+            }
         }
         if(menu.options == 4){
             cout<<"Digite o número do mapa que deseja ver a solução:";
             cin>>game.mapOrigin.numMap;
-            mapSolution(game,reason);
+            OperationResult result=mapSolution(game);
+            if(!result.success){
+                cout<<result.reason<<endl;
+            }
             
         
         }
-        if (menu.options == 6){
-            game.fim = true;
-            return 0;
-        }
+        if(menu.options == 5){
 
-        while (!game.fim && !game.venceu) {
+        }
+      
+
+        while (!game.end) {
             system("clear");
             mapGenerate(game);
 
