@@ -2,6 +2,7 @@
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <cctype>
 #include <termios.h>
 #include <unistd.h>
 #define order 14
@@ -80,7 +81,7 @@ void win(Game &game){
 void smashed(Game &game){
     game.venceu=true;
             cout << "\n==========================================" << endl;
-            cout << "        PARABENS! Voce foi esmagado!           " << endl;
+            cout << "        Voce foi esmagado. Derrota!      " << endl;
             cout << "==========================================" << endl;
     game.fim=true;
 }
@@ -298,7 +299,7 @@ for (int i = 0; i < N / 2; i++) {
 //nova linha = coluna antiga
 //nova coluna = N - linha antiga
 void mapRotationAnti(Game &game){
-    int N=order;
+    int N=game.currentMap.mapOrder;
     for(int i=0;i<N/2;i++){
         for(int j=0;j<(N+1)/2;j++){
             int temp = game.currentMap.map[i][j];
@@ -320,8 +321,8 @@ void mapGenerate(Game &game) {
     cout<<"Rotações:"<<game.contRotates << endl;
     cout<<"Orientação:"<<game.orientation <<endl;
     cout<<"Mapa:"<<game.currentMap.numMap << endl;
-    for (int i = 0; i < line; i++) {
-        for (int j = 0; j < collum; j++) {
+    for (int i = 0; i < game.currentMap.mapOrder; i++) {
+        for (int j = 0; j < game.currentMap.mapOrder; j++) {
             switch (game.currentMap.map[i][j]) {
                 case hollow:
                     cout << " ";
@@ -362,12 +363,11 @@ void mapGenerate(Game &game) {
                     cout << " ";
                     break;
             }
-            if(game.last){
-                win(game);
-                break;
-            }
         }
         cout << endl;
+    }
+    if(game.last && !game.venceu){
+        win(game);
     }
 }
 void movement(Game &game,int displacementRow,int displacementColumn){
@@ -444,22 +444,18 @@ void keys(Game &game,char keyB){
             movement(game,0,1);
             break;
                 case 'q':
-                verifyPlayerInLever(game);
+                if(verifyPlayerInLever(game)){
                     mapRotationAnti(game);
                     gravity(game);
-                    verifyGameOrientation;
-                
-                    game.orientation-=90;
-                
+                    game.orientation=(game.orientation+270)%360;
+                }
                     break;
                 case 'e':
-                verifyPlayerInLever(game);
+                if(verifyPlayerInLever(game)){
                     mapRotationNormal(game);
                     gravity(game);
-                    verifyGameOrientation(game);
-                    
-                    game.orientation+=90;
-                
+                    game.orientation=(game.orientation+90)%360;
+                }
                     break;
                 case 'r':
                      reset(game);
@@ -475,13 +471,87 @@ void keys(Game &game,char keyB){
 }
 bool mapSolution(Game &game,string &reason){
     ifstream file;
-    file.open("Soluções/map"+to_string(game.currentMap.numMap)+".csv");
+    string element;
+    char keyToMov;
+    int i=0;
+    file.open("Soluções/map"+to_string(game.currentMap.numMap)+".sol");
 
     if(!file.is_open()){
         reason="Erro ao abrir o arquivo";
         return false;
         //terminar mapSolution ,fazer mais 2 mapas,recordes e salvar jogo,depois disso finalmente verei um universo agradecido,e arrumar mensagem de vitoria
     }
+    stringstream key(element);
+    while(getline(file,element,',')){
+        keyToMov=element[i];
+        keys(game,keyToMov);
+        i++;
+        system("clear");
+        mapGenerate(game);
+    }
+    return true;
+}
+bool saveGame(const Game &game,string &reason){
+    ofstream file;
+    int size=game.currentMap.mapOrder;
+
+    if(size<11 || size>21){
+        reason="Dimensão inválida para salvar o jogo";
+        return false;
+    }
+    if(game.mapOrigin.mapOrder!=size){
+        reason="Mapa original inválido para salvar o jogo";
+        return false;
+    }
+
+    file.open("jogo_salvo.csv");
+
+    if(!file.is_open()){
+        reason="Erro ao abrir o arquivo do jogo salvo";
+        return false;
+    }
+
+    file << game.currentMap.numMap << ",";
+    file << game.currentMap.mapOrder << ",";
+    file << game.orientation << ",";
+    file << game.contRotates << ",";
+    file << game.contkeys << ",";
+    file << game.position.row << ",";
+    file << game.position.column << endl;
+
+    file << game.currentMap.MapName << endl;
+
+    for(int i=0;i<size;i++){
+        for(int j=0;j<size;j++){
+            file << game.currentMap.map[i][j];
+            if(j<size-1){
+                file << ",";
+            }
+        }
+        file << endl;
+    }
+
+    file << "MAPA_ORIGINAL" << endl;
+
+    for(int i=0;i<size;i++){
+        for(int j=0;j<size;j++){
+            file << game.mapOrigin.map[i][j];
+            if(j<size-1){
+                file << ",";
+            }
+        }
+        file << endl;
+    }
+
+    file.close();
+
+    if(file.fail()){
+        reason="Erro ao gravar o jogo salvo";
+        return false;
+    }
+
+    reason.clear();
+    return true;
 }
 int getch(void) {
     int ch;
@@ -534,6 +604,8 @@ int main() {
             cout<<"Digite o número do mapa que deseja ver a solução:";
             cin>>game.mapOrigin.numMap;
             mapSolution(game,reason);
+            
+        
         }
         if (menu.options == 6){
             game.fim = true;
