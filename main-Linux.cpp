@@ -38,9 +38,11 @@ struct Game{
     bool desistiu;
     bool currentGame;
     bool last;
+    bool jogoSalvo;
     int orientation;
     int contRotates;
     int contkeys;
+    int escolha;
     Position position;
     Map currentMap;
     Map mapOrigin;
@@ -471,9 +473,10 @@ OperationResult verifySaveGame(Game &game){
     cin>>i;
     if(i==1){
        OperationResult result = saveGame(game);
+       game.jogoSalvo=result.success;
        return result;
     }
-    return {false,"Erro ao salvar o jogo"};
+    return {false,""};
 }
 void keys(Game &game,char keyB){
     switch (keyB) {
@@ -493,15 +496,19 @@ void keys(Game &game,char keyB){
                 if(verifyPlayerInLever(game)){
                     mapRotationAnti(game);
                     gravity(game);
-                    verifyGameOrientation(game);
-                    game.orientation+=90;
+                    if(verifyGameOrientation(game)){
+                        break;
+                    };
+                    game.orientation-=90;
                 }
                     break;
                 case 'e':
                 if(verifyPlayerInLever(game)){
                     mapRotationNormal(game);
                     gravity(game);
-                    verifyGameOrientation(game);
+                    if(verifyGameOrientation(game)){
+                        break;
+                    };
                     game.orientation+=90;
                 }
                     break;
@@ -524,25 +531,64 @@ void keys(Game &game,char keyB){
             }
 }
 OperationResult mapSolution(Game &game){
-    ifstream file;
-    string element;
-    char keyToMov;
-    int i=0;
-    file.open("Soluções/map"+to_string(game.currentMap.numMap)+".sol");
+    Game solutionGame = {};
+    solutionGame.currentMap.numMap=game.mapOrigin.numMap;
 
+    OperationResult mapResult=readMap(solutionGame.currentMap,solutionGame);
+    if(!mapResult.success){
+        return {false,"Não foi possível carregar o mapa: "+mapResult.reason};
+    }
+    solutionGame.mapOrigin=solutionGame.currentMap;
+    solutionGame.end=false;
+    solutionGame.last=false;
+    solutionGame.orientation=0;
+    solutionGame.contRotates=0;
+    solutionGame.contkeys=0;
+
+    bool playerFound=false;
+    for(int row=0;row<solutionGame.currentMap.mapOrder;row++){
+        for(int column=0;column<solutionGame.currentMap.mapOrder;column++){
+            if(solutionGame.currentMap.map[row][column]==player){
+                solutionGame.position={row,column};
+                playerFound=true;
+            }
+        }
+    }
+    if(!playerFound){
+        return {false,"O mapa não contém a posição inicial do jogador"};
+    }
+
+    ifstream file("Soluções/map"+to_string(solutionGame.currentMap.numMap)+".sol");
     if(!file.is_open()){
-        return {false,"Erro ao abrir o arquivo"};
-        //terminar mapSolution ,fazer mais 2 mapas,recordes e salvar jogo,depois disso finalmente verei um universo agradecido,e arrumar mensagem de vitoria
+        return {false,"Não foi possível abrir o arquivo da solução"};
     }
-    stringstream key(element);
-    while(getline(file,element,',')){
-        keyToMov=element[i];
-        keys(game,keyToMov);
-        i++;
+
+    string solution,solutionLine;
+    while(getline(file,solutionLine)){
+        solution+=solutionLine;
+    }
+    string moves;
+
+    if(moves.empty()){
+        return {false,"O arquivo da solução está vazio"};
+    }
+
+    for(int i=0;i<moves.size();i++){
+        keys(solutionGame,moves[i]);
         system("clear");
-        mapGenerate(game);
+        mapGenerate(solutionGame);
+
+        if(solutionGame.end){
+            if(solutionGame.last){
+                return {true,"Solução concluída em "+to_string(i+1)+" teclas, com "+
+                    to_string(solutionGame.contkeys)+" movimentos e "+
+                    to_string(solutionGame.contRotates)+" rotações."};
+            }
+            return {false,"O jogador perdeu durante a solução, na tecla "+to_string(i+1)};
+        }
     }
-    return {true,""};
+
+    return {false,"As teclas da solução acabaram antes de o jogador alcançar a saída"};
 }
 OperationResult loadGame(Game &game){
     ifstream file;
@@ -739,34 +785,31 @@ int getch(void) {
     return ch;
 }
 
-int main() {
-    printf("\033[?25l");
-    Game game = {};
-    Menu menu = {};
-    Game gameCopy = {};
-    game.end = true;
-    
-//Map 1 Solution:
-//a a s s d d d d d s s s q q q a a w a a s s d s d 
+void menu(Game &game,Menu &menuState,Game &gameCopy){
+    Game savedGame = {};
+    OperationResult savedGameResult=loadGame(savedGame);
+    game.jogoSalvo=savedGameResult.success;
 
-//Map 2 solution:
- //c
-
-//Map hard Solution:
-//w w w w w a a w a a a a a e e e w w w w d d d d w d d d s
-
-    while (menu.options != 6){
+    while (menuState.options != 6){
         cout << "\n1-Sobre 2-Novo jogo 3-Continuar 4-Ver soluções 5-Recordes 6-Fim\n";
-        cin >> menu.options;
+        cin >> menuState.options;
 
-        if (menu.options == 1) {
+        if (menuState.options == 1) {
             about();
             getch();
         }
 
-        if (menu.options == 2) {
+        if (menuState.options == 2) {
             cout << "Digite 1 para o mapa map1,2 para map2 e 3 para o mapa difícil: ";
             cin >> game.mapOrigin.numMap;
+            if(game.jogoSalvo){
+                cout<<"Você tem um jogo salvo. Digite 1 para voltar ao menu ou outra tecla para iniciar um novo jogo: ";
+                cin>>game.escolha;
+                if(game.escolha==1){
+                    menu(game,menuState,gameCopy);
+                    return;
+                }
+            }
             OperationResult result=selection(game,gameCopy);
             game.currentGame=result.success;
             if(!result.success){
@@ -774,26 +817,25 @@ int main() {
             }
         }
 
-        if (menu.options == 3) {
+        if (menuState.options == 3) {
             OperationResult result=loadGame(game);
             if(!result.success){
                 cout<<result.reason<<endl;
+            }else{
+                game.jogoSalvo=true;
             }
         }
-        if(menu.options == 4){
+        if(menuState.options == 4){
             cout<<"Digite o número do mapa que deseja ver a solução:";
             cin>>game.mapOrigin.numMap;
             OperationResult result=mapSolution(game);
-            if(!result.success){
+            if(!result.reason.empty()){
                 cout<<result.reason<<endl;
             }
-            
-        
         }
-        if(menu.options == 5){
+        if(menuState.options == 5){
 
         }
-      
 
         while (!game.end) {
             system("clear");
@@ -803,6 +845,16 @@ int main() {
             keys(game,game.keyB);
         }
     }
+}
+
+int main() {
+    printf("\033[?25l");
+    Game game = {};
+    Menu menuState = {};
+    Game gameCopy = {};
+    game.end = true;
+
+    menu(game,menuState,gameCopy);
     return 0;
 }
 //Passagem por valor nao precisa de backup das mapes OKK
