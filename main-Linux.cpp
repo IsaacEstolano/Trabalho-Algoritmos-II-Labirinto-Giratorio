@@ -3,6 +3,9 @@
 #include <fstream>
 #include <sstream>
 #include <cctype>
+#include <cstdlib>
+#include <ctime>
+#include <cstdio>
 #include <termios.h>
 #include <unistd.h>
 #define order 14
@@ -39,6 +42,7 @@ struct Game{
     bool currentGame;
     bool last;
     bool jogoSalvo;
+    bool animate;
     int orientation;
     int contRotates;
     int contkeys;
@@ -54,12 +58,25 @@ struct OperationResult{
 struct Menu{
     int options;
 };
+struct Recorde{
+    string nome;
+    int mapa;
+    int movimentos;
+    int rotacoes;
+};
+template <typename T>
+void trocar(T &first,T &second){
+    T temporary=first;
+    first=second;
+    second=temporary;
+}
 void about() {
     cout << "==================================================" << endl;
     cout << "                LABIRINTO GIRATORIO               " << endl;
     cout << "==================================================" << endl;
     cout << "Equipe: Isaac Furtado Estolano da Silveira" << endl;
-    cout << "Disciplina: Algoritmos e Programacao II -" << endl;
+    cout << "Professor: Thiago Felski" << endl;
+    cout << "Disciplina: Algoritmos e Programacao II - Outubro/2026" << endl;
     cout << "OBJETIVO: atravessar o labirinto ate a saida (S)." << endl;
     cout << "O cenario inteiro pode ser girado 90 graus, mas so quando" << endl;
     cout << "voce estiver em cima de uma alavanca (^)." << endl << endl;
@@ -73,7 +90,9 @@ void about() {
     cout << "CONTROLES:" << endl;
     cout << "  W A S D - mover      Q - girar anti-horario" << endl;
     cout << "  E - girar horario    R - reiniciar a fase" << endl;
-    cout << "  K - voltar ao menu (o jogo fica pausado)" << endl << endl;
+    cout << "  ESC - salvar e voltar ao menu" << endl;
+    cout << "  K - voltar ao menu com opcao de salvar" << endl;
+    cout << "MENU: novo jogo, continuar, ver solucao, recordes, sobre e fim." << endl << endl;
 }
 
 void win(Game &game){
@@ -105,7 +124,7 @@ void gravity(Game &game)
                 if(game.currentMap.map[linha + 1][j] == door && game.contRotates % 2 != 0){
                     podeCair = true;
                 }
-                if(game.currentMap.map[linha+1][j] == player || game.currentMap.map[linha+1][j] == playerInLever || game.currentMap.map[linha+1][j]==playerIn){
+                if(game.currentMap.map[linha+1][j] == player || game.currentMap.map[linha+1][j] == playerInLever || game.currentMap.map[linha+1][j]==playerIn || game.currentMap.map[linha+1][j]==playerInExit){
                    smashed(game);
                     break;
                 }
@@ -138,12 +157,32 @@ bool stableMap(const Game &jogoOriginal)
 
     return true;
 }
+string mapFileName(int mapNumber){
+    string fileName="map"+to_string(mapNumber)+".csv";
+    ifstream file(fileName);
+    if(file.is_open()){
+        return fileName;
+    }
+    return "Mapas/"+fileName;
+}
+string solutionFileName(int mapNumber){
+    string fileName="map"+to_string(mapNumber)+".sol";
+    ifstream file(fileName);
+    if(file.is_open()){
+        return fileName;
+    }
+    file.open("Soluções/"+fileName);
+    if(file.is_open()){
+        return "Soluções/"+fileName;
+    }
+    return fileName;
+}
 OperationResult readMap(Map &currentMap,Game gameCopy){
     ifstream file;
     string element,dimension,mapName;
     int playersQuantity=0,exitPresence=0;
     Map loadedMap=currentMap;//copia,para validar,depois atribui para a matriz
-    file.open("Mapas/map"+to_string(currentMap.numMap)+".csv");
+    file.open(mapFileName(currentMap.numMap));
 
     if(!file.is_open()){
         return {false,"Erro ao abrir o arquivo"};
@@ -223,17 +262,14 @@ OperationResult readMap(Map &currentMap,Game gameCopy){
 }
 
 void defineCoordinates(Game &game){
-    if (game.currentMap.numMap == 1) {
-        game.position.row = 3;
-        game.position.column = 6;
-    }
-    if (game.currentMap.numMap == 2) {
-        game.position.row = 12;
-        game.position.column = 1;
-    }
-    if (game.currentMap.numMap == 3) {
-        game.position.row = 11;
-        game.position.column = 10;
+    for(int row=0;row<game.currentMap.mapOrder;row++){
+        for(int column=0;column<game.currentMap.mapOrder;column++){
+            if(game.currentMap.map[row][column]==player){
+                game.position.row=row;
+                game.position.column=column;
+                return;
+            }
+        }
     }
 }
 void reset(Game &game){
@@ -396,6 +432,9 @@ void movement(Game &game,int displacementRow,int displacementColumn){
     game.position.row=finalPositionRow;
     game.position.column=finalPositionColumn;
     game.contkeys++;
+    if(game.animate){
+        sleep(1);
+    }
 }
 bool verifyPlayerInLever(Game &game){
     if(game.currentMap.map[game.position.row][game.position.column]==playerInLever){
@@ -519,6 +558,7 @@ void keys(Game &game,char keyB){
                         game.orientation=0;
                         break;
                 case 'k':
+                {
                     OperationResult result=verifySaveGame(game);
                     cout<<result.reason;
                     if(!result.success && !result.reason.empty()){
@@ -527,69 +567,119 @@ void keys(Game &game,char keyB){
                     game.end=true;
                     game.voltarMenu=true;
                     break;
+                }
+                case 27:
+                {
+                    OperationResult saveResult=saveGame(game);
+                    cout<<saveResult.reason<<endl;
+                    game.jogoSalvo=saveResult.success;
+                    game.end=true;
+                    game.voltarMenu=true;
+                    break;
+                }
                     
             }
 }
-OperationResult mapSolution(Game &game){
-    Game solutionGame = {};
-    solutionGame.currentMap.numMap=game.mapOrigin.numMap;
-
-    OperationResult mapResult=readMap(solutionGame.currentMap,solutionGame);
+OperationResult runSolution(Game &game,bool draw){
+    int mapNumber=game.currentMap.numMap;
+    Game gameCopy=game;
+    game.currentMap.numMap=mapNumber;
+    OperationResult mapResult=readMap(game.currentMap,gameCopy);
     if(!mapResult.success){
-        return {false,"Não foi possível carregar o mapa: "+mapResult.reason};
+        return {false,"Mapa inválido: "+mapResult.reason};
     }
-    solutionGame.mapOrigin=solutionGame.currentMap;
-    solutionGame.end=false;
-    solutionGame.last=false;
-    solutionGame.orientation=0;
-    solutionGame.contRotates=0;
-    solutionGame.contkeys=0;
+    game.mapOrigin=game.currentMap;
+    game.orientation=0;
+    game.contRotates=0;
+    game.contkeys=0;
+    game.end=false;
+    game.last=false;
+    game.voltarMenu=false;
+    game.animate=draw;
 
     bool playerFound=false;
-    for(int row=0;row<solutionGame.currentMap.mapOrder;row++){
-        for(int column=0;column<solutionGame.currentMap.mapOrder;column++){
-            if(solutionGame.currentMap.map[row][column]==player){
-                solutionGame.position={row,column};
+    for(int row=0;row<game.currentMap.mapOrder;row++){
+        for(int column=0;column<game.currentMap.mapOrder;column++){
+            if(game.currentMap.map[row][column]==player){
+                game.position.row=row;
+                game.position.column=column;
                 playerFound=true;
+                break;
             }
+        }
+        if(playerFound){
+            break;
         }
     }
     if(!playerFound){
         return {false,"O mapa não contém a posição inicial do jogador"};
     }
 
-    ifstream file("Soluções/map"+to_string(solutionGame.currentMap.numMap)+".sol");
+    ifstream file(solutionFileName(mapNumber));
     if(!file.is_open()){
-        return {false,"Não foi possível abrir o arquivo da solução"};
+        return {false,"Arquivo de solução inexistente"};
     }
 
-    string solution,solutionLine;
-    while(getline(file,solutionLine)){
-        solution+=solutionLine;
-    }
-    string moves;
-
-    if(moves.empty()){
-        return {false,"O arquivo da solução está vazio"};
-    }
-
-    for(int i=0;i<moves.size();i++){
-        keys(solutionGame,moves[i]);
+    string element;
+    int keyNumber=0;
+    bool hasKeys=false;
+    if(draw){
         system("clear");
-        mapGenerate(solutionGame);
-
-        if(solutionGame.end){
-            if(solutionGame.last){
-                return {true,"Solução concluída em "+to_string(i+1)+" teclas, com "+
-                    to_string(solutionGame.contkeys)+" movimentos e "+
-                    to_string(solutionGame.contRotates)+" rotações."};
+        mapGenerate(game);
+    }
+    while(getline(file,element)){
+        int elementLength=element.length();
+        for(int i=0;i<elementLength;i++){
+            char key=element[i];
+            if(key==' ' || key=='\t' || key=='\r'){
+                continue;
             }
-            return {false,"O jogador perdeu durante a solução, na tecla "+to_string(i+1)};
+            hasKeys=true;
+            keyNumber++;
+            if(key>='A' && key<='Z'){
+                key=key-'A'+'a';
+            }
+            if(key!='w' && key!='a' && key!='s' && key!='d' && key!='q' && key!='e'){
+                return {false,"Tecla inválida na posição "+to_string(keyNumber)};
+            }
+            keys(game,key);
+            if(draw){
+                system("clear");
+                mapGenerate(game);
+            }
+            if(game.last){
+                game.end=true;
+                return {true,"Solução válida: "+to_string(keyNumber)+" teclas, "+
+                    to_string(game.contkeys)+" movimentos e "+
+                    to_string(game.contRotates)+" rotações"};
+            }
+            if(game.end){
+                return {false,"Derrota durante a solução na tecla "+to_string(keyNumber)};
+            }
         }
     }
-
-    return {false,"As teclas da solução acabaram antes de o jogador alcançar a saída"};
+    if(!hasKeys){
+        return {false,"Arquivo de solução vazio"};
+    }
+    return {false,"As teclas acabaram antes de alcançar a saída"};
 }
+OperationResult mapSolution(Game &game){
+    return runSolution(game,true);
+}
+void verifyAllSolutions(){
+    for(int mapNumber=1;mapNumber<=100;mapNumber++){
+        ifstream mapFile(mapFileName(mapNumber));
+        if(!mapFile.is_open()){
+            break;
+        }
+        Game solutionGame={};
+        solutionGame.currentMap.numMap=mapNumber;
+        OperationResult result=runSolution(solutionGame,false);
+        cout<<"Mapa "<<mapNumber<<" - "<<solutionGame.currentMap.MapName<<": "
+            <<result.reason<<endl;
+    }
+}
+
 OperationResult loadGame(Game &game){
     ifstream file;
     string element,metadata,mapName;
@@ -773,82 +863,289 @@ OperationResult loadGame(Game &game){
     game=loadedGame;
     return {true,"Jogo carregado"};
 }
+bool parseRecordNumber(const string &text,int &number){
+    string extra;
+    stringstream valueStream(text);
+    if(!(valueStream>>number) || (valueStream>>extra)){
+        return false;
+    }
+    return true;
+}
+OperationResult loadRecords(Recorde records[],int &recordsQuantity){
+    ifstream file("Recordes.csv");
+    recordsQuantity=0;
+    if(!file.is_open()){
+        return {true,""};
+    }
+    string element;
+    while(getline(file,element)){
+        string name,mapText,movementsText,rotationsText,extra;
+        stringstream rowStream(element);
+        Recorde record;
+        if(!getline(rowStream,name,',') || !getline(rowStream,mapText,',') ||
+           !getline(rowStream,movementsText,',') || !getline(rowStream,rotationsText,',')){
+            continue;
+        }
+        if(getline(rowStream,extra,',')){
+            continue;
+        }
+        if(name.empty() || name.length()>15 ||
+           !parseRecordNumber(mapText,record.mapa) ||
+           !parseRecordNumber(movementsText,record.movimentos) ||
+           !parseRecordNumber(rotationsText,record.rotacoes) ||
+           record.mapa<1 || record.movimentos<0 || record.rotacoes<0){
+            continue;
+        }
+        record.nome=name;
+        if(recordsQuantity<200){
+            records[recordsQuantity]=record;
+            recordsQuantity++;
+        }
+    }
+    return {true,""};
+}
+OperationResult appendRecord(const Game &game,const string &name){
+    if(name.empty() || name.length()>15){
+        return {false,"Nome inválido para o recorde"};
+    }
+    int nameLength=name.length();
+    for(int i=0;i<nameLength;i++){
+        if(name[i]==','){
+            return {false,"O nome do recorde não pode conter vírgulas"};
+        }
+    }
+    ofstream file("Recordes.csv",ios::app);
+    if(!file.is_open()){
+        return {false,"Não foi possível abrir Recordes.csv"};
+    }
+    file<<name<<","<<game.currentMap.numMap<<","<<game.contkeys<<","<<game.contRotates<<endl;
+    file.close();
+    if(file.fail()){
+        return {false,"Não foi possível gravar o recorde"};
+    }
+    return {true,"Recorde registrado"};
+}
+void sortRecordsForMap(Recorde records[],int &recordsQuantity,int mapNumber){
+    Recorde mapRecords[200];
+    int mapRecordsQuantity=0;
+    for(int i=0;i<recordsQuantity;i++){
+        if(records[i].mapa==mapNumber){
+            mapRecords[mapRecordsQuantity]=records[i];
+            mapRecordsQuantity++;
+        }
+    }
+    if(mapRecordsQuantity==0){
+        recordsQuantity=0;
+        return;
+    }
+    for(int i=0;i<mapRecordsQuantity-1;i++){
+        for(int j=0;j<mapRecordsQuantity-i-1;j++){
+            if(mapRecords[j].movimentos>mapRecords[j+1].movimentos ||
+               (mapRecords[j].movimentos==mapRecords[j+1].movimentos &&
+                mapRecords[j].rotacoes>mapRecords[j+1].rotacoes)){
+                trocar(mapRecords[j],mapRecords[j+1]);
+            }
+        }
+    }
+    recordsQuantity=mapRecordsQuantity;
+    for(int i=0;i<recordsQuantity;i++){
+        records[i]=mapRecords[i];
+    }
+}
+void displayRecords(const Recorde records[],int recordsQuantity,int mapNumber){
+    if(recordsQuantity==0){
+        cout<<"Ainda não há recordes para o mapa "<<mapNumber<<"."<<endl;
+        return;
+    }
+    cout<<"Recordes do mapa "<<mapNumber<<":"<<endl;
+    for(int i=0;i<recordsQuantity && i<5;i++){
+        cout<<i+1<<". "<<records[i].nome<<" - "
+            <<records[i].movimentos<<" movimentos, "
+            <<records[i].rotacoes<<" rotações"<<endl;
+    }
+}
 int getch(void) {
     int ch;
     struct termios oldt, newt;
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    ch = getchar();
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    bool terminal=tcgetattr(STDIN_FILENO,&oldt)==0;
+    if(terminal){
+        newt=oldt;
+        newt.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO,TCSANOW,&newt);
+    }
+    ch=cin.get();
+    while(ch=='\n' || ch=='\r'){
+        ch=cin.get();
+    }
+    if(terminal){
+        tcsetattr(STDIN_FILENO,TCSANOW,&oldt);
+    }
     return ch;
 }
 
+void listMaps(int validMaps[],int &validQuantity){
+    validQuantity=0;
+    for(int mapNumber=1;mapNumber<=100;mapNumber++){
+        ifstream mapFile(mapFileName(mapNumber));
+        if(!mapFile.is_open()){
+            break;
+        }
+        Game mapGame={};
+        Game gameCopy={};
+        mapGame.currentMap.numMap=mapNumber;
+        OperationResult result=readMap(mapGame.currentMap,gameCopy);
+        if(result.success){
+            cout<<mapNumber<<" - "<<mapGame.currentMap.MapName<<endl;
+            validMaps[validQuantity]=mapNumber;
+            validQuantity++;
+        }else{
+            cout<<mapNumber<<" - indisponível: "<<result.reason<<endl;
+        }
+    }
+}
+void playGame(Game &game){
+    game.animate=true;
+    game.voltarMenu=false;
+    while(!game.end){
+        system("clear");
+        mapGenerate(game);
+        if(game.end){
+            if(game.last){
+                string playerName;
+                cout<<"Nome do jogador (até 15 caracteres): ";
+                getline(cin,playerName);
+                if(playerName.empty()){
+                    playerName="Jogador";
+                }
+                if(playerName.length()>15){
+                    playerName=playerName.substr(0,15);
+                }
+                int playerNameLength=playerName.length();
+                for(int i=0;i<playerNameLength;i++){
+                    if(playerName[i]==','){
+                        playerName[i]=' ';
+                    }
+                }
+                OperationResult recordResult=appendRecord(game,playerName);
+                cout<<recordResult.reason<<endl;
+                remove("jogo_salvo.csv");
+                game.jogoSalvo=false;
+            }
+            break;
+        }
+        game.keyB=getch();
+        keys(game,game.keyB);
+    }
+    game.animate=false;
+}
 void menu(Game &game,Menu &menuState,Game &gameCopy){
-    Game savedGame = {};
+    Game savedGame={};
     OperationResult savedGameResult=loadGame(savedGame);
     game.jogoSalvo=savedGameResult.success;
 
-    while (menuState.options != 6){
-        cout << "\n1-Sobre 2-Novo jogo 3-Continuar 4-Ver soluções 5-Recordes 6-Fim\n";
-        cin >> menuState.options;
+    while(menuState.options!=6){
+        cout<<"\n1-Sobre 2-Novo jogo ";
+        if(game.jogoSalvo){
+            cout<<"3-Continuar ";
+        }else{
+            cout<<"3-Continuar (indisponível) ";
+        }
+        cout<<"4-Ver soluções 5-Recordes 6-Fim\n";
+        cout<<"Escolha: ";
+        if(!(cin>>menuState.options)){
+            cin.clear();
+            cin.ignore(10000,'\n');
+            cout<<"Opção inválida."<<endl;
+            continue;
+        }
 
-        if (menuState.options == 1) {
+        if(menuState.options==1){
             about();
             getch();
-        }
-
-        if (menuState.options == 2) {
-            cout << "Digite 1 para o mapa map1,2 para map2 e 3 para o mapa difícil: ";
-            cin >> game.mapOrigin.numMap;
-            if(game.jogoSalvo){
-                cout<<"Você tem um jogo salvo. Digite 1 para voltar ao menu ou outra tecla para iniciar um novo jogo: ";
-                cin>>game.escolha;
-                if(game.escolha==1){
-                    menu(game,menuState,gameCopy);
-                    return;
+        }else if(menuState.options==2){
+            int validMaps[100];
+            int validQuantity=0;
+            listMaps(validMaps,validQuantity);
+            if(validQuantity==0){
+                cout<<"Nenhum mapa válido foi encontrado."<<endl;
+                continue;
+            }
+            int selectedMap;
+            cout<<"Digite o número do mapa ou 0 para escolher um aleatório: ";
+            cin>>selectedMap;
+            if(selectedMap==0){
+                selectedMap=validMaps[rand()%validQuantity];
+            }
+            bool selectedMapIsValid=false;
+            for(int i=0;i<validQuantity;i++){
+                if(validMaps[i]==selectedMap){
+                    selectedMapIsValid=true;
                 }
             }
+            if(!selectedMapIsValid){
+                cout<<"Mapa inválido ou indisponível."<<endl;
+                continue;
+            }
+            if(game.jogoSalvo){
+                cout<<"Há um jogo salvo. Digite 1 para cancelar ou 2 para substituí-lo: ";
+                cin>>game.escolha;
+                if(game.escolha!=2){
+                    continue;
+                }
+                remove("jogo_salvo.csv");
+                game.jogoSalvo=false;
+            }
+            game.mapOrigin.numMap=selectedMap;
             OperationResult result=selection(game,gameCopy);
-            game.currentGame=result.success;
             if(!result.success){
                 cout<<result.reason<<endl;
+                continue;
             }
-        }
-
-        if (menuState.options == 3) {
+            game.currentGame=true;
+            game.end=false;
+            playGame(game);
+        }else if(menuState.options==3){
             OperationResult result=loadGame(game);
             if(!result.success){
-                cout<<result.reason<<endl;
-            }else{
-                game.jogoSalvo=true;
+                game.jogoSalvo=false;
+                cout<<"Continuar indisponível: "<<result.reason<<endl;
+                continue;
             }
-        }
-        if(menuState.options == 4){
-            cout<<"Digite o número do mapa que deseja ver a solução:";
-            cin>>game.mapOrigin.numMap;
+            game.jogoSalvo=true;
+            playGame(game);
+        }else if(menuState.options==4){
+            int mapNumber;
+            cout<<"Digite o número do mapa ou 0 para verificar todos: ";
+            cin>>mapNumber;
+            if(mapNumber==0){
+                verifyAllSolutions();
+                continue;
+            }
+            game.currentMap.numMap=mapNumber;
             OperationResult result=mapSolution(game);
-            if(!result.reason.empty()){
-                cout<<result.reason<<endl;
-            }
-        }
-        if(menuState.options == 5){
-
-        }
-
-        while (!game.end) {
-            system("clear");
-            mapGenerate(game);
-
-            game.keyB = getch();
-            keys(game,game.keyB);
+            cout<<result.reason<<endl;
+            game.end=true;
+        }else if(menuState.options==5){
+            int validMaps[100];
+            int validQuantity=0;
+            listMaps(validMaps,validQuantity);
+            int mapNumber;
+            cout<<"Digite o número do mapa para ver os recordes: ";
+            cin>>mapNumber;
+            Recorde records[200];
+            int recordsQuantity=0;
+            loadRecords(records,recordsQuantity);
+            sortRecordsForMap(records,recordsQuantity,mapNumber);
+            displayRecords(records,recordsQuantity,mapNumber);
+        }else if(menuState.options!=6){
+            cout<<"Opção inválida."<<endl;
         }
     }
 }
 
 int main() {
     printf("\033[?25l");
+    srand(time(0));
     Game game = {};
     Menu menuState = {};
     Game gameCopy = {};
