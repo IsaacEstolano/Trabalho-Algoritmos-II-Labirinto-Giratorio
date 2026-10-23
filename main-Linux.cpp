@@ -964,24 +964,6 @@ void displayRecords(const Recorde records[],int recordsQuantity,int mapNumber){
             <<records[i].rotacoes<<" rotações"<<endl;
     }
 }
-int getch(void) {
-    int ch;
-    struct termios oldt, newt;
-    bool terminal=tcgetattr(STDIN_FILENO,&oldt)==0;
-    if(terminal){
-        newt=oldt;
-        newt.c_lflag &= ~(ICANON | ECHO);
-        tcsetattr(STDIN_FILENO,TCSANOW,&newt);
-    }
-    ch=cin.get();
-    while(ch=='\n' || ch=='\r'){
-        ch=cin.get();
-    }
-    if(terminal){
-        tcsetattr(STDIN_FILENO,TCSANOW,&oldt);
-    }
-    return ch;
-}
 
 void listMaps(int validMaps[],int &validQuantity){
     validQuantity=0;
@@ -1042,12 +1024,13 @@ void menu(Game &game,Menu &menuState,Game &gameCopy){
     Game savedGame={};
     OperationResult savedGameResult=loadGame(savedGame);
     game.jogoSalvo=savedGameResult.success;
-
+    
     while(menuState.options!=6){
         cout<<"\n1-Sobre 2-Novo jogo ";
         if(game.jogoSalvo){
             cout<<"3-Continuar ";
-        }else{
+        }
+        else{
             cout<<"3-Continuar (indisponível) ";
         }
         cout<<"4-Ver soluções 5-Recordes 6-Fim\n";
@@ -1058,11 +1041,12 @@ void menu(Game &game,Menu &menuState,Game &gameCopy){
             cout<<"Opção inválida."<<endl;
             continue;
         }
-
+        
         if(menuState.options==1){
             about();
             getch();
-        }else if(menuState.options==2){
+        }
+        else if(menuState.options==2){
             int validMaps[100];
             int validQuantity=0;
             listMaps(validMaps,validQuantity);
@@ -1104,7 +1088,8 @@ void menu(Game &game,Menu &menuState,Game &gameCopy){
             game.currentGame=true;
             game.end=false;
             playGame(game);
-        }else if(menuState.options==3){
+        }
+        else if(menuState.options==3){
             OperationResult result=loadGame(game);
             if(!result.success){
                 game.jogoSalvo=false;
@@ -1113,7 +1098,8 @@ void menu(Game &game,Menu &menuState,Game &gameCopy){
             }
             game.jogoSalvo=true;
             playGame(game);
-        }else if(menuState.options==4){
+        }
+        else if(menuState.options==4){
             int mapNumber;
             cout<<"Digite o número do mapa ou 0 para verificar todos: ";
             cin>>mapNumber;
@@ -1125,7 +1111,8 @@ void menu(Game &game,Menu &menuState,Game &gameCopy){
             OperationResult result=mapSolution(game);
             cout<<result.reason<<endl;
             game.end=true;
-        }else if(menuState.options==5){
+        }
+        else if(menuState.options==5){
             int validMaps[100];
             int validQuantity=0;
             listMaps(validMaps,validQuantity);
@@ -1141,6 +1128,24 @@ void menu(Game &game,Menu &menuState,Game &gameCopy){
             cout<<"Opção inválida."<<endl;
         }
     }
+}
+int getch(void) {
+    int ch;
+    struct termios oldt, newt;
+    bool terminal=tcgetattr(STDIN_FILENO,&oldt)==0;
+    if(terminal){
+        newt=oldt;
+        newt.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO,TCSANOW,&newt);
+    }
+    ch=cin.get();
+    while(ch=='\n' || ch=='\r'){
+        ch=cin.get();
+    }
+    if(terminal){
+        tcsetattr(STDIN_FILENO,TCSANOW,&oldt);
+    }
+    return ch;
 }
 
 int main() {
